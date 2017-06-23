@@ -147,7 +147,7 @@ err_t send_modified_command_to_tz(fpc_data_t *ldata, struct qcom_km_ion_info_t i
     return result;
 }
 
-err_t send_normal_command(fpc_data_t *ldata, int command)
+err_t send_normal_command(fpc_data_t *ldata, int group, int command)
 {
     struct qcom_km_ion_info_t ihandle;
 
@@ -162,7 +162,7 @@ err_t send_normal_command(fpc_data_t *ldata, int command)
     // TODO: use single shared buffer instead of allocating/free'ing again and again
     fpc_send_std_cmd_t* send_cmd = (fpc_send_std_cmd_t*) ihandle.ion_sbuffer;
 
-    send_cmd->group_id = 0x1;
+    send_cmd->group_id = group;
     send_cmd->cmd_id = command;
     send_cmd->ret_val = 0x0;
 
@@ -295,7 +295,7 @@ int64_t fpc_load_db_id(fpc_imp_data_t *data)
     fpc_data_t *ldata = (fpc_data_t*)data;
 
     fpc_get_db_id_cmd_t cmd = {0};
-    cmd.group_id = FPC_GROUP_NORMAL;
+    cmd.group_id = FPC_GROUP_TEMPLATE;
     cmd.cmd_id = FPC_GET_TEMPLATE_ID;
 
     if(send_custom_cmd(ldata, &cmd, sizeof(cmd)) < 0) {
@@ -349,7 +349,7 @@ err_t fpc_del_print_id(fpc_imp_data_t *data, uint32_t id)
     fpc_data_t *ldata = (fpc_data_t*)data;
 
     fpc_fingerprint_delete_t cmd = {0};
-    cmd.group_id = FPC_GROUP_NORMAL;
+    cmd.group_id = FPC_GROUP_TEMPLATE;
     cmd.cmd_id = FPC_DELETE_FINGERPRINT;
     cmd.fingerprint_id = id;
 
@@ -368,7 +368,7 @@ err_t fpc_wait_finger_lost(fpc_imp_data_t *data)
     fpc_data_t *ldata = (fpc_data_t*)data;
     int result;
 
-    result = send_normal_command(ldata, FPC_WAIT_FINGER_LOST);
+    result = send_normal_command(ldata, FPC_GROUP_SENDOR, FPC_WAIT_FINGER_LOST);
     if(result > 0)
         return 0;
 
@@ -384,7 +384,7 @@ err_t fpc_wait_finger_down(fpc_imp_data_t *data)
 
 //    while(1)
     {
-        result = send_normal_command(ldata, FPC_WAIT_FINGER_DOWN);
+        result = send_normal_command(ldata, FPC_GROUP_SENDOR, FPC_WAIT_FINGER_DOWN);
         ALOGE("Wait finger down result: %d\n", result);
         if(result)
             return result;
@@ -394,7 +394,7 @@ err_t fpc_wait_finger_down(fpc_imp_data_t *data)
                 return -1;
         }
 
-        result = send_normal_command(ldata, FPC_GET_FINGER_STATUS);
+        result = send_normal_command(ldata, FPC_GROUP_SENDOR, FPC_GET_FINGER_STATUS);
         if(result < 0)
         {
             ALOGE("Get finger status failed: %d\n", result);
@@ -427,7 +427,7 @@ err_t fpc_capture_image(fpc_imp_data_t *data)
         if(!ret)
         {
             ALOGE("Finger down, capturing image\n");
-            ret = send_normal_command(ldata, FPC_CAPTURE_IMAGE);
+            ret = send_normal_command(ldata, FPC_GROUP_SENDOR, FPC_CAPTURE_IMAGE);
             ALOGE("Image capture result :%d\n", ret);
         } else
             ret = 1001;
@@ -440,7 +440,7 @@ err_t fpc_capture_image(fpc_imp_data_t *data)
         return -1;
     }
 
-    send_normal_command(ldata, FPC_INIT);
+    //send_normal_command(ldata, FPC_INIT);
     return ret;
 }
 
@@ -449,7 +449,7 @@ err_t fpc_enroll_step(fpc_imp_data_t *data, uint32_t *remaining_touches)
     ALOGD(__func__);
     fpc_data_t *ldata = (fpc_data_t*)data;
     fpc_enrol_step_t cmd = {0};
-    cmd.group_id = FPC_GROUP_NORMAL;
+    cmd.group_id = FPC_GROUP_TEMPLATE;
     cmd.cmd_id = FPC_ENROL_STEP;
 
     int ret = send_custom_cmd(ldata, &cmd, sizeof(cmd));
@@ -471,7 +471,7 @@ err_t fpc_enroll_start(fpc_imp_data_t * data, int __unused print_index)
 {
     ALOGD(__func__);
     fpc_data_t *ldata = (fpc_data_t*)data;
-    int ret = send_normal_command(ldata, FPC_BEGIN_ENROL);
+    int ret = send_normal_command(ldata, FPC_GROUP_TEMPLATE, FPC_BEGIN_ENROL);
     if(ret < 0) {
         ALOGE("Error beginning enrol: %d\n", ret);
         return -1;
@@ -484,7 +484,7 @@ err_t fpc_enroll_end(fpc_imp_data_t *data, uint32_t *print_id)
     ALOGD(__func__);
     fpc_data_t *ldata = (fpc_data_t*)data;
     fpc_end_enrol_t cmd = {0};
-    cmd.group_id = FPC_GROUP_NORMAL;
+    cmd.group_id = FPC_GROUP_TEMPLATE;
     cmd.cmd_id = FPC_END_ENROL;
 
     if(send_custom_cmd(ldata, &cmd, sizeof(cmd)) < 0) {
@@ -514,7 +514,7 @@ err_t fpc_auth_step(fpc_imp_data_t *data, uint32_t *print_id)
 
     // TODO: Send FPC_QUALIFY_IMAGE, <0 == error, 2 = ??, >0 => Identify
 
-    identify_cmd.commandgroup = FPC_GROUP_NORMAL;
+    identify_cmd.commandgroup = FPC_GROUP_TEMPLATE;
     identify_cmd.command = FPC_IDENTIFY;
     int result = send_custom_cmd(ldata, &identify_cmd, sizeof(identify_cmd));
     if(result)
@@ -552,7 +552,7 @@ fpc_fingerprint_index_t fpc_get_print_index(fpc_imp_data_t *data, uint32_t __unu
     fpc_fingerprint_list_t cmd = {0};
     unsigned int i;
 
-    cmd.group_id = FPC_GROUP_NORMAL;
+    cmd.group_id = FPC_GROUP_TEMPLATE;
     cmd.cmd_id = FPC_GET_FINGERPRINTS;
 
     int ret = send_custom_cmd(ldata, &cmd, sizeof(cmd));
@@ -581,7 +581,7 @@ err_t fpc_load_empty_db(fpc_imp_data_t *data) {
     err_t result;
     fpc_data_t *ldata = (fpc_data_t*)data;
 
-    result = send_normal_command(ldata, FPC_LOAD_EMPTY_DB);
+    result = send_normal_command(ldata, FPC_GROUP_TEMPLATE, FPC_LOAD_EMPTY_DB);
     if(result)
     {
         ALOGE("Error creating new empty database: %d\n", result);
@@ -607,7 +607,7 @@ err_t fpc_set_gid(fpc_imp_data_t *data, uint32_t gid)
     int result;
     fpc_data_t *ldata = (fpc_data_t*)data;
     fpc_set_gid_t cmd = {0};
-    cmd.group_id = FPC_GROUP_NORMAL;
+    cmd.group_id = FPC_GROUP_TEMPLATE;
     cmd.cmd_id = FPC_SET_GID;
     cmd.gid = gid;
 
@@ -694,10 +694,10 @@ err_t fpc_init(fpc_imp_data_t **data)
 
     fpc_data->fpc_handle = mFPC_handle;
 
-    if ((ret = send_normal_command(fpc_data, FPC_INIT)) != 0) {
+    /*if ((ret = send_normal_command(fpc_data, FPC_INIT)) != 0) {
         ALOGE("Error sending FPC_INIT to tz: %d\n", ret);
         return -1;
-    }
+    }*/
 
     // Start creating one off command to get cert from keymaster
     keymaster_cmd_t *req = (keymaster_cmd_t *) mKeymasterHandle->ion_sbuffer;
