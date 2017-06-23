@@ -23,6 +23,8 @@
 extern "C" {
 #endif
 
+#define IMP_NAME "Loire 6.x FPC"
+
 #define FP_TZAPP_PATH "/vendor/firmware/"
 #define FP_TZAPP_NAME "tzfingerprint"
 

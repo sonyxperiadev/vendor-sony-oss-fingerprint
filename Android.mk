@@ -23,20 +23,10 @@ LOCAL_MODULE := fingerprint.$(TARGET_DEVICE)
 LOCAL_MODULE_RELATIVE_PATH := hw
 LOCAL_SRC_FILES := fingerprint.c \
 		   QSEEComFunc.c \
-		   common.c
-
-ifeq ($(filter-out satsuki sumire suzuran,$(TARGET_DEVICE)),)
-LOCAL_SRC_FILES += fpc_imp_kitakami.c
-LOCAL_CFLAGS += -DFPC_DB_PER_GID
-endif
-
-ifeq ($(filter-out kugo suzu dora kagura keyaki,$(TARGET_DEVICE)),)
-LOCAL_SRC_FILES += fpc_imp_loire_tone.c
-endif
-
-ifeq ($(filter-out maple,$(TARGET_DEVICE)),)
-LOCAL_SRC_FILES += fpc_imp_yoshino.c
-endif
+		   common.c \
+		   fpc_imp_kitakami.c \
+		   fpc_imp_loire_tone.c \
+		   fpc_imp_yoshino.c
 
 ifeq ($(TARGET_FPC_VERSION),N)
 LOCAL_CFLAGS += -DUSE_FPC_N
@@ -45,6 +35,7 @@ endif
 LOCAL_CFLAGS += -std=c99
 LOCAL_SHARED_LIBRARIES := liblog \
 			  libdl \
+			  libcutils \
 			  libutils
 
 SYSFS_PREFIX := "/sys/devices/soc/fpc1145_device"

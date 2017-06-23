@@ -23,6 +23,8 @@
 extern "C" {
 #endif
 
+#define IMP_NAME "Tone 7.x FPC"
+
 #define FP_TZAPP_PATH "/vendor/firmware/"
 #define FP_TZAPP_NAME "tzfingerprint"
 
