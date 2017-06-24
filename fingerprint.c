@@ -508,7 +508,7 @@ static int fingerprint_open(const hw_module_t* module, const char __attribute__(
     if (strcmp(platform_name,PLATFORM_NAME_LOIRE) == 0) {
         fpc_loire_init_func(&fpc_functions);
     } else if (strcmp(platform_name,PLATFORM_NAME_TONE) == 0) {
-        fpc_loire_init_func(&fpc_functions);
+        fpc_tone_init_func(&fpc_functions);
     } else if (strcmp(platform_name,PLATFORM_NAME_KITAKAMI) == 0) {
         fpc_kitakami_init_func(&fpc_functions);
     } else if (strcmp(platform_name,PLATFORM_NAME_YOSHINO) == 0) {
@@ -552,7 +552,7 @@ static int fingerprint_open(const hw_module_t* module, const char __attribute__(
     dev->set_notify = set_notify_callback;
     dev->notify = NULL;
 
-    ALOGI("Started FPC Implementation : %s",sdev->func->fpc_get_name());
+    ALOGI("Started FPC Implementation : %s",sdev->func->fpc_get_name(sdev->fpc));
 
     *device = (hw_device_t*) dev;
     return 0;

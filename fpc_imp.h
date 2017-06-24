@@ -33,7 +33,7 @@ typedef struct fpc_imp_data_t {
 } fpc_imp_data_t;
 
 typedef struct fpc_imp_func_t {
-    char* (*fpc_get_name) ();
+    char* (*fpc_get_name) (fpc_imp_data_t *data);
     int64_t (*fpc_load_db_id) (fpc_imp_data_t *data); //load db ID, used as authenticator ID in android
     int64_t (*fpc_load_auth_challenge) (fpc_imp_data_t *data); //genertate and load an auth challenge for pre enroll
     err_t (*fpc_set_auth_challenge) (fpc_imp_data_t *data, int64_t challenge); //set auth challenge during authenticate
@@ -71,6 +71,7 @@ typedef struct fpc_imp_func_t {
 //per plaform function init
 void fpc_kitakami_init_func(fpc_imp_func_t **func);
 void fpc_loire_init_func(fpc_imp_func_t **func);
+void fpc_tone_init_func(fpc_imp_func_t **func);
 void fpc_yoshino_init_func(fpc_imp_func_t **func);
 
 #endif

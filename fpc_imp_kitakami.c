@@ -878,7 +878,7 @@ err:
     return -1;
 }
 
-char* kitakami_fpc_get_name() {
+char* kitakami_fpc_get_name(fpc_imp_data_t *data) {
     return "Kitakami 6.x FPC";
 }
 
