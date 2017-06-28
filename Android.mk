@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-ifeq ($(filter-out satsuki sumire suzuran suzu kugo dora kagura keyaki,$(TARGET_DEVICE)),)
+ifeq ($(filter-out satsuki sumire suzuran suzu kugo dora kagura keyaki maple,$(TARGET_DEVICE)),)
 LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
