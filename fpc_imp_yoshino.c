@@ -500,11 +500,22 @@ err_t yoshino_fpc_enroll_end(fpc_imp_data_t *data, uint32_t *print_id)
     return 0;
 }
 
-
 err_t yoshino_fpc_auth_start(fpc_imp_data_t __unused  *data)
 {
     ALOGD(__func__);
     return 0;
+}
+
+err_t yoshino_fpc_qualify_image(fpc_imp_data_t * data)
+{
+    ALOGD(__func__);
+    fpc_data_t *ldata = (fpc_data_t*)data;
+    int ret = yoshino_send_normal_command(ldata, FPC_GROUP_TEMPLATE, FPC_QUALIFY_IMAGE);
+    if(ret < 0) {
+        ALOGE("Error qualify image: %d\n", ret);
+        return -1;
+    }
+    return ret;
 }
 
 err_t yoshino_fpc_auth_step(fpc_imp_data_t *data, uint32_t *print_id)
@@ -512,7 +523,16 @@ err_t yoshino_fpc_auth_step(fpc_imp_data_t *data, uint32_t *print_id)
     fpc_data_t *ldata = (fpc_data_t*)data;
     fpc_send_identify_t identify_cmd = {0};
 
-    // TODO: Send FPC_QUALIFY_IMAGE, <0 == error, 2 = ??, >0 => Identify
+    int qualify = yoshino_fpc_qualify_image(ldata);
+
+    ALOGI("Got image qualify : %d\n", qualify);
+
+    if (qualify < 0) {
+        ALOGE("Error qualify: %d", qualify);
+        return -1;
+    } else if (qualify == 2) {
+        ALOGE("Bad image try again: %d", qualify);
+    }
 
     identify_cmd.commandgroup = FPC_GROUP_TEMPLATE;
     identify_cmd.command = FPC_IDENTIFY;
@@ -639,10 +659,24 @@ err_t yoshino_fpc_store_user_db(fpc_imp_data_t *data, uint32_t __unused length, 
     return ret;
 }
 
+err_t yoshino_fpc_deep_sleep(fpc_imp_data_t *data) {
+    err_t result;
+    fpc_data_t *ldata = (fpc_data_t*)data;
+
+    result = yoshino_send_normal_command(ldata, FPC_GROUP_SENDOR, FPC_DEEP_SLEEP);
+
+    ALOGI("Deep Sleep Result: %d\n", result);
+
+    return result;
+}
+
 err_t yoshino_fpc_close(fpc_imp_data_t **data)
 {
     ALOGD(__func__);
     fpc_data_t *ldata = (fpc_data_t*)data;
+
+    yoshino_fpc_deep_sleep(ldata);
+
     ldata->qsee_handle->shutdown_app(&ldata->fpc_handle);
     if (yoshino_device_disable() < 0) {
         ALOGE("Error stopping device\n");
@@ -732,6 +766,8 @@ err_t yoshino_fpc_init(fpc_imp_data_t **data)
     ALOGD("FPC_SET_KEY_DATA Result: %d\n", result);
     if(result != 0)
         return result;
+
+    yoshino_fpc_deep_sleep(fpc_data);
 
     if (yoshino_device_disable() < 0) {
         ALOGE("Error stopping device\n");
