@@ -39,11 +39,6 @@ LOCAL_SHARED_LIBRARIES := liblog \
 			  libutils
 
 SYSFS_PREFIX := "/sys/devices/soc/fpc1145_device"
-
-ifeq ($(TARGET_KERNEL_VERSION),4.4)
-SYSFS_PREFIX := "/sys/devices/soc/soc:fpc1145"
-endif
-
 ifeq ($(TARGET_KERNEL_VERSION),3.10)
 SYSFS_PREFIX := "/sys/devices/soc.0/fpc1145_device"
 endif
