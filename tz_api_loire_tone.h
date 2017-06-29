@@ -34,6 +34,37 @@ extern "C" {
 #define FINGERPRINT_MAX_COUNT 5
 #define AUTH_RESULT_LENGTH 69
 
+typedef struct tz_command_t {
+  uint32_t group_id;
+  uint32_t cmd_id;
+} tz_command_t;
+
+typedef struct tz_command_list_t {
+  struct tz_command_t fpc_begin_enrol;
+  struct tz_command_t fpc_enrol_step;
+  struct tz_command_t fpc_end_enrol;
+  struct tz_command_t fpc_identify;
+  struct tz_command_t fpc_wait_for_finger_lost;
+  struct tz_command_t fpc_wait_for_finger_down;
+  struct tz_command_t fpc_get_finger_status;
+  struct tz_command_t fpc_load_empty_db;
+  struct tz_command_t fpc_get_fingerprints;
+  struct tz_command_t fpc_delete_fingerprints;
+  struct tz_command_t fpc_capture_image;
+  struct tz_command_t fpc_set_gid;
+  struct tz_command_t fpc_get_template_id;
+  struct tz_command_t fpc_init;
+  struct tz_command_t fpc_set_auth_challenge;
+  struct tz_command_t fpc_get_auth_challenge;
+  struct tz_command_t fpc_auth_enrol;
+  struct tz_command_t fpc_get_auth_result;
+  struct tz_command_t fpc_set_key_data;
+  struct tz_command_t fpc_load_db;
+  struct tz_command_t fpc_store_db;
+  int tz_response_offset;
+  char* tz_imp_name;
+} tz_command_list_t;
+
 typedef struct {
     uint32_t group_id;
     uint32_t cmd_id;

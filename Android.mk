@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-ifeq ($(filter-out satsuki sumire suzuran suzu kugo dora kagura keyaki,$(TARGET_DEVICE)),)
+ifeq ($(filter-out satsuki sumire suzuran suzu kugo dora kagura keyaki maple,$(TARGET_DEVICE)),)
 LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
@@ -23,19 +23,22 @@ LOCAL_MODULE := fingerprint.$(TARGET_DEVICE)
 LOCAL_MODULE_RELATIVE_PATH := hw
 LOCAL_SRC_FILES := fingerprint.c \
 		   QSEEComFunc.c \
-		   common.c
+		   common.c \
+		   fpc_imp_kitakami.c \
+		   fpc_imp_loire_tone.c \
+		   fpc_imp_yoshino.c
+
 
 ifeq ($(filter-out satsuki sumire suzuran,$(TARGET_DEVICE)),)
-LOCAL_SRC_FILES += fpc_imp_kitakami.c
-LOCAL_CFLAGS += -DFPC_DB_PER_GID
+LOCAL_CFLAGS += -DUSE_FPC_KITAKAMI
 endif
 
 ifeq ($(filter-out kugo suzu dora kagura keyaki,$(TARGET_DEVICE)),)
-LOCAL_SRC_FILES += fpc_imp_loire_tone.c
+LOCAL_CFLAGS += -DUSE_FPC_LOIRE_TONE
 endif
 
 ifeq ($(filter-out maple,$(TARGET_DEVICE)),)
-LOCAL_SRC_FILES += fpc_imp_yoshino.c
+LOCAL_CFLAGS += -DUSE_FPC_YOSHINO
 endif
 
 ifeq ($(TARGET_FPC_VERSION),N)
@@ -45,6 +48,7 @@ endif
 LOCAL_CFLAGS += -std=c99
 LOCAL_SHARED_LIBRARIES := liblog \
 			  libdl \
+			  libcutils \
 			  libutils
 
 SYSFS_PREFIX := "/sys/devices/soc/fpc1145_device"

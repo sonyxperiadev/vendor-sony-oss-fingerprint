@@ -34,6 +34,9 @@ extern "C" {
 
 #define TZ_RESPONSE_OFFSET 256
 
+#define FINGERPRINT_MAX_COUNT 5
+#define AUTH_RESULT_LENGTH 69
+
 enum fingerprint_group_t {
   FPC_GROUP_DB = 0x2,
   FPC_GROUP_FPCDATA = 0x3,
@@ -93,7 +96,123 @@ enum fingerprint_qc_cmd_t {
 
 enum fingerprint_info_cmd_t {
     FPC_GET_FPC_INFO = 0x04,
-}
+};
+
+typedef struct {
+    uint32_t group_id;
+    uint32_t cmd_id;
+    uint32_t ret_val; //Some cases this is used for return value of the command
+} fpc_send_std_cmd_t;
+
+typedef struct {
+    uint32_t cmd_id;
+    uint32_t ret_val; //Some cases this is used for return value of the command
+    uint32_t length; //Some length of data supplied by previous modified command
+} keymaster_cmd_t;
+
+
+typedef struct {
+  int32_t status;
+  uint32_t offset;
+  uint32_t length;
+} keymaster_return_t;
+
+
+typedef struct {
+    uint32_t group_id;
+    uint32_t cmd_id;
+    uint64_t challenge;
+    int32_t status;
+} fpc_send_auth_cmd_t;
+
+typedef struct {
+    uint32_t group_id;
+    uint32_t cmd_id;
+    int32_t status;
+    uint32_t gid;
+} fpc_set_gid_t;
+
+typedef struct {
+  uint32_t group_id;
+  uint32_t cmd_id;
+  int32_t status;
+  uint32_t length;
+  char data[];
+} fpc_send_keydata_t;
+
+typedef struct {
+    uint32_t group_id;
+    uint32_t cmd_id;
+    uint64_t challenge;
+    int32_t status;
+} fpc_load_auth_challenge_t;
+
+typedef struct {
+    uint32_t group_id;
+    uint32_t cmd_id;
+    int32_t status;
+    uint32_t remaining_touches;
+} fpc_enrol_step_t;
+
+typedef struct {
+    uint32_t group_id;
+    uint32_t cmd_id;
+    int32_t status;
+    uint32_t print_id;
+} fpc_end_enrol_t;
+
+typedef struct {
+  uint32_t group_id;
+  uint32_t cmd_id;
+  int32_t status;
+  uint32_t length;
+  char* data;
+} fpc_send_buffer_t;
+
+typedef struct {
+  uint32_t commandgroup;
+  uint32_t command;
+  int32_t status;
+  uint32_t id;
+  uint32_t dbg1;
+  uint32_t dbg2;
+} fpc_send_identify_t;
+
+typedef struct {
+    uint32_t group_id;
+    uint32_t cmd_id;
+    int32_t status;
+    uint32_t length;
+    uint32_t fingerprints[FINGERPRINT_MAX_COUNT];
+} fpc_fingerprint_list_t;
+
+
+typedef struct {
+    uint32_t group_id;
+    uint32_t cmd_id;
+    int32_t status;
+    uint32_t fingerprint_id;
+} fpc_fingerprint_delete_t;
+
+typedef struct {
+    uint32_t group_id;
+    uint32_t cmd_id;
+    uint32_t result;
+    uint32_t length;
+    uint8_t auth_result[AUTH_RESULT_LENGTH]; // In practice this is always 69 bytes
+} fpc_get_auth_result_t;
+
+typedef struct {
+    uint32_t length; //Length of data on ion buffer
+    uint32_t v_addr; //Virtual address of ion mmap buffer
+} fpc_send_mod_cmd_t;
+
+typedef struct {
+    uint32_t group_id;
+    uint32_t cmd_id;
+    uint32_t result;
+    uint32_t auth_id;
+} fpc_get_db_id_cmd_t;
 
 #ifdef __cplusplus
 }
