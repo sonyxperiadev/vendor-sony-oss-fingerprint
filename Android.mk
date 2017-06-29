@@ -28,6 +28,19 @@ LOCAL_SRC_FILES := fingerprint.c \
 		   fpc_imp_loire_tone.c \
 		   fpc_imp_yoshino.c
 
+
+ifeq ($(filter-out satsuki sumire suzuran,$(TARGET_DEVICE)),)
+LOCAL_CFLAGS += -DUSE_FPC_KITAKAMI
+endif
+
+ifeq ($(filter-out kugo suzu dora kagura keyaki,$(TARGET_DEVICE)),)
+LOCAL_CFLAGS += -DUSE_FPC_LOIRE_TONE
+endif
+
+ifeq ($(filter-out maple,$(TARGET_DEVICE)),)
+LOCAL_CFLAGS += -DUSE_FPC_YOSHINO
+endif
+
 ifeq ($(TARGET_FPC_VERSION),N)
 LOCAL_CFLAGS += -DUSE_FPC_N
 endif

@@ -31,12 +31,9 @@
 #include <sys/stat.h>
 #include "fpc_imp.h"
 
-
-#define PLATFORM_PROP "ro.sony.platform"
-#define PLATFORM_NAME_LOIRE "loire"
-#define PLATFORM_NAME_TONE "tone"
-#define PLATFORM_NAME_KITAKAMI "kitakami"
-#define PLATFORM_NAME_YOSHINO "yoshino"
+#if !defined(USE_FPC_KITAKAMI) && !defined(USE_FPC_LOIRE_TONE) && !defined(USE_FPC_YOSHINO)
+#error Must build for a vaild platform
+#endif
 
 typedef struct {
     pthread_t thread;
@@ -501,22 +498,25 @@ static int fingerprint_open(const hw_module_t* module, const char __attribute__(
 
     fpc_imp_func_t *fpc_functions = NULL;
 
-    char platform_name[PROPERTY_VALUE_MAX];
-    property_get(PLATFORM_PROP,platform_name,"");
-    ALOGI("Platform detected : %s",platform_name);
+#ifdef USE_FPC_KITAKAMI
+    fpc_kitakami_init_func(&fpc_functions);
+#pragma message "Build For KITAKAMI"
+#endif
 
-    if (strcmp(platform_name,PLATFORM_NAME_LOIRE) == 0) {
-        fpc_loire_init_func(&fpc_functions);
-    } else if (strcmp(platform_name,PLATFORM_NAME_TONE) == 0) {
-        fpc_tone_init_func(&fpc_functions);
-    } else if (strcmp(platform_name,PLATFORM_NAME_KITAKAMI) == 0) {
-        fpc_kitakami_init_func(&fpc_functions);
-    } else if (strcmp(platform_name,PLATFORM_NAME_YOSHINO) == 0) {
-        fpc_yoshino_init_func(&fpc_functions);
-    } else {
-        ALOGE("Could not detect sony platform");
-        return -EINVAL;
-    }
+#ifdef USE_FPC_LOIRE_TONE
+#ifdef USE_FPC_N
+    fpc_tone_init_func(&fpc_functions);
+#pragma message "Build For TONE"
+#else
+    fpc_loire_init_func(&fpc_functions);
+#pragma message "Build For LOIRE"
+#endif
+#endif
+
+#ifdef USE_FPC_YOSHINO
+    fpc_yoshino_init_func(&fpc_functions);
+#pragma message "Build For YOSHINO"
+#endif
 
     fpc_imp_data_t *fpc_data = NULL;
 
