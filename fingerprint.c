@@ -66,12 +66,15 @@ void *enroll_thread_loop(void *arg)
     while((status = fpc_capture_image(sdev->fpc)) >= 0) {
         ALOGD("%s : Got Input status=%d", __func__, status);
 
-        if (status <= FINGERPRINT_ACQUIRED_TOO_FAST) {
-            fingerprint_msg_t msg;
-            msg.type = FINGERPRINT_ACQUIRED;
-            msg.data.acquired.acquired_info = status;
-            callback(&msg);
+        pthread_mutex_lock(&sdev->lock);
+        if (!sdev->worker.thread_running ) {
+            pthread_mutex_unlock(&sdev->lock);
+            break;
         }
+        pthread_mutex_unlock(&sdev->lock);
+
+        if(status >= 1000)
+            continue;
 
         //image captured
         if (status == FINGERPRINT_ACQUIRED_GOOD) {
@@ -129,14 +132,6 @@ void *enroll_thread_loop(void *arg)
                 break;
             }
         }
-        pthread_mutex_lock(&sdev->lock);
-        if (!sdev->worker.thread_running) {
-            pthread_mutex_unlock(&sdev->lock);
-            uint32_t print_id = 0;
-            ALOGI("%s : finishing",__func__);
-            return NULL;
-        }
-        pthread_mutex_unlock(&sdev->lock);
     }
 
     uint32_t print_id = 0;
@@ -162,6 +157,16 @@ void *auth_thread_loop(void *arg)
 
     while((status = fpc_capture_image(sdev->fpc)) >= 0 ) {
         ALOGD("%s : Got Input with status %d", __func__, status);
+        
+        pthread_mutex_lock(&sdev->lock);
+        if (!sdev->worker.thread_running ) {
+            pthread_mutex_unlock(&sdev->lock);
+            break;
+        }
+        pthread_mutex_unlock(&sdev->lock);
+
+        if(status >= 1000)
+            continue;
 
         if (status <= FINGERPRINT_ACQUIRED_TOO_FAST) {
             fingerprint_msg_t msg;
@@ -209,12 +214,6 @@ void *auth_thread_loop(void *arg)
             msg.data.authenticated.finger.fid = 0;
             callback(&msg);
         }
-        pthread_mutex_lock(&sdev->lock);
-        if (!sdev->worker.thread_running) {
-            pthread_mutex_unlock(&sdev->lock);
-            break;
-        }
-        pthread_mutex_unlock(&sdev->lock);
     }
 
     fpc_auth_end(sdev->fpc);
