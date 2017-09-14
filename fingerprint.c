@@ -210,6 +210,10 @@ void *auth_thread_loop(void *arg)
                     break;
                 }
             }
+            fingerprint_msg_t msg;
+            msg.type = FINGERPRINT_AUTHENTICATED;
+            msg.data.authenticated.finger.fid = 0;
+            callback(&msg);
         }
     }
 
