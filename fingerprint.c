@@ -76,6 +76,13 @@ void *enroll_thread_loop(void *arg)
         if(status >= 1000)
             continue;
 
+        if (status <= FINGERPRINT_ACQUIRED_TOO_FAST) {
+            fingerprint_msg_t msg;
+            msg.type = FINGERPRINT_ACQUIRED;
+            msg.data.acquired.acquired_info = status;
+            callback(&msg);
+        }
+
         //image captured
         if (status == FINGERPRINT_ACQUIRED_GOOD) {
             ALOGI("%s : Enroll Step", __func__);
