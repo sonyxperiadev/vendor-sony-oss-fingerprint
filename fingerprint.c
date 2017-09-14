@@ -460,9 +460,6 @@ static int fingerprint_authenticate(struct fingerprint_device __attribute__((unu
     sdev->worker.thread_running = true;
     pthread_mutex_unlock(&sdev->lock);
 
-    // FIXME: Verify whether this needs to run on each
-    fpc_set_auth_challenge(sdev->fpc, 0);
-
     if(pthread_create(&sdev->worker.thread, NULL, auth_thread_loop, (void*)sdev)) {
         sdev->worker.thread_running = false;
         ALOGE("%s : Error creating thread\n", __func__);
