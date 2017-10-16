@@ -299,6 +299,11 @@ int64_t fpc_load_db_id(fpc_imp_data_t *data)
     ALOGD(__func__);
     fpc_data_t *ldata = (fpc_data_t*)data;
 
+    // return cached auth_id value if available
+    if(ldata->auth_id) {
+        ALOGD("%s: Already have auth_id, returning %lu\n",__func__,ldata->auth_id);
+        return ldata->auth_id;
+    }
     fpc_get_db_id_cmd_t cmd = {0};
     cmd.group_id = FPC_GROUP_NORMAL;
     cmd.cmd_id = FPC_GET_TEMPLATE_ID;
@@ -307,6 +312,8 @@ int64_t fpc_load_db_id(fpc_imp_data_t *data)
         ALOGE("Error sending data to TZ\n");
         return -1;
     }
+    // cache the auth_id value received from TZ
+    ldata->auth_id = cmd.auth_id;
     return cmd.auth_id;
 }
 
@@ -364,6 +371,8 @@ err_t fpc_del_print_id(fpc_imp_data_t *data, uint32_t id)
         ALOGE("Error sending command: %d\n", ret);
         return -1;
     }
+    // remove the cached auth_id value upon deleting a fingerprint
+    ldata->auth_id = 0;
     return cmd.status;
 }
 
@@ -502,6 +511,8 @@ err_t fpc_enroll_end(fpc_imp_data_t *data, uint32_t *print_id)
     }
 
     *print_id = cmd.print_id;
+    // remove the cached auth_id value upon enrolling a fingerprint
+    ldata->auth_id = 0;
     return 0;
 }
 
