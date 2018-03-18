@@ -29,7 +29,14 @@
 #include <byteswap.h>
 #include <sys/stat.h>
 #include "fpc_imp.h"
+#include <unistd.h>
 
+enum worker_state {
+    STATE_IDLE,
+    STATE_ENROLL,
+    STATE_AUTH,
+    STATE_EXIT
+};
 
 typedef struct {
     pthread_t thread;
@@ -44,14 +51,40 @@ typedef struct {
     char db_path[255];
     pthread_mutex_t lock;
     uint64_t challenge;
+    enum worker_state state;
 } sony_fingerprint_device_t;
 
-void *enroll_thread_loop(void *arg)
-{
-    ALOGI("%s", __func__);
-    sony_fingerprint_device_t *sdev = (sony_fingerprint_device_t*)arg;
-    fingerprint_notify_t callback = sdev->device.notify;
 
+
+static enum worker_state getState(sony_fingerprint_device_t* sdev) {
+    ALOGD("%s", __func__);
+    enum worker_state state = STATE_IDLE;
+    state = sdev->state;
+    return state;
+}
+
+
+static bool setState(sony_fingerprint_device_t* sdev, enum worker_state state) {
+    ALOGD("%s", __func__);
+
+    bool ret = true;
+
+    pthread_mutex_lock(&sdev->lock);
+    if (sdev->state == state) {
+        ret = false;
+        ALOGW("%s : Already in state =%d", __func__, state);
+    } else {
+        sdev->state = state;
+    }
+    pthread_mutex_unlock(&sdev->lock);
+
+    return ret;
+}
+
+
+void process_enroll(sony_fingerprint_device_t *sdev) {
+
+    fingerprint_notify_t callback = sdev->device.notify;
     int32_t print_count = fpc_get_print_count(sdev->fpc);
     ALOGD("%s : print count is : %u", __func__, print_count);
 
@@ -65,6 +98,10 @@ void *enroll_thread_loop(void *arg)
 
     while((status = fpc_capture_image(sdev->fpc)) >= 0) {
         ALOGD("%s : Got Input status=%d", __func__, status);
+
+        if (getState(sdev) != STATE_ENROLL) {
+            break;
+        }
 
         if (status <= FINGERPRINT_ACQUIRED_TOO_FAST) {
             fingerprint_msg_t msg;
@@ -101,6 +138,7 @@ void *enroll_thread_loop(void *arg)
                     fingerprint_msg_t msg;
                     msg.type = FINGERPRINT_ERROR;
                     msg.data.error = FINGERPRINT_ERROR_UNABLE_TO_PROCESS;
+                    setState(sdev, STATE_IDLE);
                     callback(&msg);
                     break;
                 }
@@ -118,6 +156,7 @@ void *enroll_thread_loop(void *arg)
                 msg.data.enroll.samples_remaining = 0;
                 msg.data.enroll.msg = 0;
                 callback(&msg);
+                setState(sdev, STATE_IDLE);
                 break;
             }
             else {
@@ -125,33 +164,17 @@ void *enroll_thread_loop(void *arg)
                 fingerprint_msg_t msg;
                 msg.type = FINGERPRINT_ERROR;
                 msg.data.error = FINGERPRINT_ERROR_UNABLE_TO_PROCESS;
+                setState(sdev, STATE_IDLE);
                 callback(&msg);
                 break;
             }
         }
-        pthread_mutex_lock(&sdev->lock);
-        if (!sdev->worker.thread_running) {
-            pthread_mutex_unlock(&sdev->lock);
-            break;
-        }
-        pthread_mutex_unlock(&sdev->lock);
     }
-
-    uint32_t print_id = 0;
-    ALOGI("%s : finishing",__func__);
-
-    pthread_mutex_lock(&sdev->lock);
-    sdev->worker.thread_running = false;
-    pthread_mutex_unlock(&sdev->lock);
-    return NULL;
+    return;
 }
 
 
-void *auth_thread_loop(void *arg)
-{
-    ALOGI("%s", __func__);
-
-    sony_fingerprint_device_t *sdev = (sony_fingerprint_device_t*)arg;
+void process_auth(sony_fingerprint_device_t *sdev) {
     fingerprint_notify_t callback = sdev->device.notify;
     int result;
     int status = 1;
@@ -161,12 +184,9 @@ void *auth_thread_loop(void *arg)
     while((status = fpc_capture_image(sdev->fpc)) >= 0 ) {
         ALOGV("%s : Got Input with status %d", __func__, status);
 
-        pthread_mutex_lock(&sdev->lock);
-        if (!sdev->worker.thread_running ) {
-            pthread_mutex_unlock(&sdev->lock);
+        if (getState(sdev) != STATE_AUTH ) {
             break;
         }
-        pthread_mutex_unlock(&sdev->lock);
 
         if(status >= 1000)
             continue;
@@ -222,27 +242,59 @@ void *auth_thread_loop(void *arg)
 
                     msg.data.authenticated.hat = hat;
 
+                    setState(sdev, STATE_IDLE);
                     callback(&msg);
-
                     break;
                 }
             }
             callback(&msg);
         }
     }
+    return;
+}
 
-    fpc_auth_end(sdev->fpc);
-    ALOGI("%s : finishing",__func__);
+void *worker_thread(void *args){
+    ALOGI("%s +", __func__);
 
-    pthread_mutex_lock(&sdev->lock);
-    sdev->worker.thread_running  = false;
-    pthread_mutex_unlock(&sdev->lock);
+    sony_fingerprint_device_t *sdev = (sony_fingerprint_device_t*)args;
+
+    bool thread_running = true;
+
+    while (thread_running) {
+        usleep(3000);
+
+        switch (getState(sdev)) {
+            case STATE_IDLE:
+                ALOGI("%s : IDLE", __func__);
+                break;
+            case STATE_ENROLL:
+                ALOGI("%s : ENROLL", __func__);
+                process_enroll(sdev);
+                break;
+            case STATE_AUTH:
+                ALOGI("%s : AUTH", __func__);
+                process_auth(sdev);
+                break;
+            case STATE_EXIT:
+                ALOGI("%s : AUTH", __func__);
+                thread_running = false;
+                break;
+            default:
+                ALOGI("%s : UNKNOWN", __func__);
+                break;
+        }
+    }
+
+    ALOGI("%s -", __func__);
     return NULL;
 }
 
 static int fingerprint_close(hw_device_t *dev)
 {
     sony_fingerprint_device_t *sdev = (sony_fingerprint_device_t*)dev;
+
+    setState(sdev, STATE_EXIT);
+
     fpc_close(&sdev->fpc);
     if (dev) {
         free(dev);
@@ -267,15 +319,6 @@ static int fingerprint_enroll(struct fingerprint_device *dev,
 {
     sony_fingerprint_device_t *sdev = (sony_fingerprint_device_t*)dev;
 
-    pthread_mutex_lock(&sdev->lock);
-    bool thread_running = sdev->worker.thread_running ;
-    pthread_mutex_unlock(&sdev->lock);
-
-    if (thread_running) {
-        ALOGE("%s : Error, thread already running\n", __func__);
-        return -1;
-    }
-
 
     ALOGI("%s : hat->challenge %lu",__func__,(unsigned long) hat->challenge);
     ALOGI("%s : hat->user_id %lu",__func__,(unsigned long) hat->user_id);
@@ -286,14 +329,8 @@ static int fingerprint_enroll(struct fingerprint_device *dev,
 
     fpc_verify_auth_challenge(sdev->fpc, (void*) hat, sizeof(hw_auth_token_t));
 
-    pthread_mutex_lock(&sdev->lock);
-    sdev->worker.thread_running  = true;
-    pthread_mutex_unlock(&sdev->lock);
-
-    if(pthread_create(&sdev->worker.thread, NULL, enroll_thread_loop, (void*)sdev)) {
-        ALOGE("%s : Error creating thread\n", __func__);
-        sdev->worker.thread_running  = false;
-        return FINGERPRINT_ERROR;
+    if (!setState(sdev, STATE_ENROLL)){
+        ALOGW("%s : Thread already in enroll state",__func__);
     }
 
     return 0;
@@ -322,23 +359,9 @@ static int fingerprint_cancel(struct fingerprint_device *dev)
     sony_fingerprint_device_t *sdev = (sony_fingerprint_device_t*)dev;
     fingerprint_notify_t callback = sdev->device.notify;
 
-    pthread_mutex_lock(&sdev->lock);
-    bool thread_running = sdev->worker.thread_running ;
-    pthread_mutex_unlock(&sdev->lock);
-
-    ALOGI("%s : check thread running",__func__);
-    if (!sdev->worker.thread_running ) {
-        ALOGI("%s : - (thread not running)",__func__);
-        return 0;
+    if (!setState(sdev, STATE_IDLE)){
+        ALOGW("%s : Thread already in idle state",__func__);
     }
-
-    pthread_mutex_lock(&sdev->lock);
-    sdev->worker.thread_running  = false;
-    pthread_mutex_unlock(&sdev->lock);
-
-    ALOGI("%s : join running thread",__func__);
-    pthread_join(sdev->worker.thread, NULL);
-    sdev->worker.thread = 0;
 
     ALOGI("%s : -",__func__);
 
@@ -485,28 +508,16 @@ static int fingerprint_authenticate(struct fingerprint_device *dev,
     err_t r;
     sony_fingerprint_device_t *sdev = (sony_fingerprint_device_t*)dev;
 
-    pthread_mutex_lock(&sdev->lock);
-    if (sdev->worker.thread_running) {
-        ALOGE("%s : Error, thread already running\n", __func__);
-        pthread_mutex_unlock(&sdev->lock);
-        return -1;
-    }
-
-
-    sdev->worker.thread_running = true;
-    pthread_mutex_unlock(&sdev->lock);
     ALOGI("%s: operation_id=%ju", __func__, operation_id);
     r = fpc_set_auth_challenge(sdev->fpc, operation_id);
     if (r < 0) {
         ALOGE("%s: Error setting auth challenge to %ju. r=0x%08X",__func__, operation_id, r);
-        sdev->worker.thread_running = false;
         return FINGERPRINT_ERROR;
     }
 
-    if(pthread_create(&sdev->worker.thread, NULL, auth_thread_loop, (void*)sdev)) {
-        ALOGE("%s : Error creating thread\n", __func__);
-        sdev->worker.thread_running = false;
-        return FINGERPRINT_ERROR;
+
+    if (!setState(sdev, STATE_AUTH)){
+        ALOGW("%s : Thread already in auth state",__func__);
     }
 
     return 0;
@@ -567,6 +578,16 @@ static int fingerprint_open(const hw_module_t* module, const char __attribute__(
     dev->notify = NULL;
 
     *device = (hw_device_t*) dev;
+
+    // Set state to idle up front
+    setState(sdev, STATE_IDLE);
+
+    if(pthread_create(&sdev->worker.thread, NULL, worker_thread, (void*)sdev)) {
+        ALOGE("%s : Error creating worker thread\n", __func__);
+        sdev->worker.thread_running  = false;
+        return -EINVAL;
+    }
+
     return 0;
 }
 

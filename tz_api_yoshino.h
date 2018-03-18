@@ -29,7 +29,7 @@ extern "C" {
 #define KM_TZAPP_PATH "/system/etc/firmware"
 #define KM_TZAPP_ALT_PATH ""
 #define KM_TZAPP_NAME "keymaster64"
-#define KM_TZAPP_ALT_NAME ""
+#define KM_TZAPP_ALT_NAME "keymaster"
 
 #define BUFFER_SIZE 64
 
