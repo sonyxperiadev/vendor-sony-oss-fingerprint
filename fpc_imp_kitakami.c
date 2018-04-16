@@ -116,6 +116,11 @@ err_t send_modified_command_to_tz(fpc_data_t *ldata, uint32_t cmd, void * buffer
 
 err_t send_normal_command(fpc_data_t *ldata, uint32_t cmd, uint32_t param)
 {
+    if (!ldata) {
+        ALOGE("Unable to send command: FPC data is NULL\n");
+        return -1;
+    }
+
     struct QSEECom_handle *handle = ldata->fpc_handle;
     struct qsee_handle_t *qsee_handle = ldata->qsee_handle;
 

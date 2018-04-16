@@ -113,6 +113,11 @@ err_t send_modified_command_to_tz(fpc_data_t *ldata, struct qcom_km_ion_info_t i
 
 err_t send_normal_command(fpc_data_t *ldata, int command)
 {
+    if (!ldata) {
+        ALOGE("Unable to send command: FPC data is NULL\n");
+        return -1;
+    }
+
     fpc_send_std_cmd_t* send_cmd =
         (fpc_send_std_cmd_t*) ldata->ihandle.ion_sbuffer;
 
