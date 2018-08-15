@@ -340,7 +340,6 @@ err_t fpc_wait_finger_down(fpc_imp_data_t *data)
 {
     ALOGV(__func__);
     int result=-1;
-    int i;
     fpc_data_t *ldata = (fpc_data_t*)data;
 
 //    while(1)
@@ -496,7 +495,7 @@ err_t fpc_auth_end(fpc_imp_data_t __unused *data)
     return 0;
 }
 
-err_t fpc_update_template(fpc_imp_data_t *data)
+err_t fpc_update_template(fpc_imp_data_t __unused *data)
 {
     // TODO: Implement for loire/tone
     return 0;
@@ -560,7 +559,6 @@ err_t fpc_load_empty_db(fpc_imp_data_t *data) {
 err_t fpc_load_user_db(fpc_imp_data_t *data, char* path)
 {
     int result;
-    struct stat sb;
     fpc_data_t *ldata = (fpc_data_t*)data;
 
     ALOGD("Loading user db from %s\n", path);
