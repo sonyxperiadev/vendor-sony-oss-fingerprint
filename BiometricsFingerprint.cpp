@@ -336,11 +336,13 @@ sony_fingerprint_device_t* BiometricsFingerprint::openHal() {
     sdev->worker.epoll_fd = epoll_create1(0);
     sdev->worker.event_fd = eventfd(0, EFD_NONBLOCK);
 
+#if PLATFORM_SDK_VERSION < 28
     struct epoll_event evnt = {0};
     evnt.data.fd = sdev->worker.event_fd;
     evnt.events = EPOLLIN | EPOLLET;
 
     epoll_ctl(sdev->worker.epoll_fd, EPOLL_CTL_ADD, sdev->worker.event_fd, &evnt);
+#endif
 
     sdev->state = STATE_IDLE;
 
@@ -399,8 +401,10 @@ void * BiometricsFingerprint::worker_thread(void *args){
     sony_fingerprint_device_t *sdev = (sony_fingerprint_device_t*)args;
 
     bool thread_running = true;
+#if PLATFORM_SDK_VERSION < 28
     static const int EVENTS = 2;
     struct epoll_event evnts[EVENTS];
+#endif
 
     ALOGI("START");
 
@@ -408,8 +412,10 @@ void * BiometricsFingerprint::worker_thread(void *args){
 
         if (sdev->worker.running_state == getState(sdev)) {
             ALOGI("%s : No change needed to state, wait", __func__);
+#if PLATFORM_SDK_VERSION < 28
             int count = epoll_wait(sdev->worker.epoll_fd, evnts, EVENTS, -1);
             ALOGI("Events : %d", count);
+#endif
         }
 
         switch (getState(sdev)) {

@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <unistd.h>
 
 #define LOG_TAG "QSEE_WRAPPER"
 //#define LOG_NDEBUG 0
@@ -29,7 +30,11 @@
 #define QSEE_LIBRARY "libQSEEComAPI.so"
 #endif
 
+#if PLATFORM_SDK_VERSION < 28
 #include <cutils/log.h>
+#else
+#include <log/log.h>
+#endif
 
 //Forward declarations
 

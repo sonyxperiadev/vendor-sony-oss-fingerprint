@@ -7,7 +7,11 @@
 
 #define LOG_TAG "FPC COMMON"
 
+#if PLATFORM_SDK_VERSION < 28
 #include <cutils/log.h>
+#else
+#include <log/log.h>
+#endif
 #include <sys/ioctl.h>
 
 err_t fpc_set_power(int poweron)

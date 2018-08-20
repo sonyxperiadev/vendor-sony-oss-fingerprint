@@ -35,7 +35,11 @@
 #define LOG_TAG "FPC IMP"
 //#define LOG_NDEBUG 0
 
+#if PLATFORM_SDK_VERSION < 28
 #include <cutils/log.h>
+#else
+#include <log/log.h>
+#endif
 #include <limits.h>
 
 typedef struct {

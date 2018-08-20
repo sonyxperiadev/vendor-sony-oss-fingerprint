@@ -35,7 +35,11 @@
 #define LOG_TAG "FPC IMP"
 //#define LOG_NDEBUG 0
 
+#if PLATFORM_SDK_VERSION < 28
 #include <cutils/log.h>
+#else
+#include <log/log.h>
+#endif
 #include <limits.h>
 
 typedef struct {
@@ -496,7 +500,7 @@ err_t fpc_auth_end(fpc_imp_data_t __unused *data)
     return 0;
 }
 
-err_t fpc_update_template(fpc_imp_data_t *data)
+err_t fpc_update_template(fpc_imp_data_t __unused *data)
 {
     // TODO: Implement for loire/tone
     return 0;
