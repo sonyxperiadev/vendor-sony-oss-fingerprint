@@ -210,7 +210,6 @@ int32_t qcom_km_ion_memalloc(struct qcom_km_ion_info_t *handle,
 {
     int32_t ret = 0;
     int32_t iret = 0;
-    int32_t fd = 0;
     unsigned char *v_addr;
     struct ion_allocation_data ion_alloc_data;
     int32_t ion_fd;

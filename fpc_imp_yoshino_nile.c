@@ -71,7 +71,7 @@ static const char *error_strings[] = {
     "FPC_ERROR_INPUT",
 };
 
-static const uint32_t num_error_strings = sizeof(error_strings) / sizeof(error_strings[0]);
+static const int num_error_strings = sizeof(error_strings) / sizeof(error_strings[0]);
 
 static const char *fpc_error_str(int err)
 {

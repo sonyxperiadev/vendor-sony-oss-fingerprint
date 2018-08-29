@@ -583,7 +583,7 @@ void * BiometricsFingerprint::worker_thread(void *args){
                         ALOGI("%s : hat->user_id %ju", __func__, hat.user_id);
                         ALOGI("%s : hat->authenticator_id %ju",  __func__, hat.authenticator_id);
                         ALOGI("%s : hat->authenticator_type %u", __func__, ntohl(hat.authenticator_type));
-                        ALOGI("%s : hat->timestamp %ju", __func__, bswap_64(hat.timestamp));
+                        ALOGI("%s : hat->timestamp %llu", __func__, bswap_64(hat.timestamp));
                         ALOGI("%s : hat size %zu", __func__, sizeof(hw_auth_token_t));
 
                         fid = print_id;

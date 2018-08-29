@@ -58,7 +58,6 @@ err_t fpc_poll_irq(void)
 {
     int fd, ret = -1;
     uint32_t arg = 0;
-    struct pollfd pfd;
 
     fd = open("/dev/fingerprint", O_RDWR | O_NONBLOCK);
     if (fd < 0) {
