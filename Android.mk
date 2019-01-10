@@ -29,6 +29,9 @@ LOCAL_SRC_FILES += fpc_imp_yoshino_nile_tama.c
 LOCAL_CFLAGS += -DUSE_FPC_TAMA
 endif
 
+LOCAL_STATIC_LIBRARIES := \
+    android.hardware.biometrics.fingerprint@2.1-impl
+
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
     liblog \
