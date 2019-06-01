@@ -32,7 +32,6 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <sys/stat.h>
-#include <sys/ioctl.h>
 
 #include <hardware/fingerprint.h>
 
@@ -474,6 +473,122 @@ err_t fpc_capture_image(fpc_imp_data_t *data)
     return ret;
 }
 
+bool fpc_navi_supported(fpc_imp_data_t __unused *data)
+{
+    return true;
+}
+
+err_t fpc_navi_enter(fpc_imp_data_t *data)
+{
+    ALOGV(__func__);
+    fpc_data_t *ldata = (fpc_data_t *)data;
+
+    fpc_navi_cmd_t cmd = {
+        .group_id = FPC_GROUP_NAVIGATION,
+        .cmd_id = FPC_NAVIGATION_ENTER,
+    };
+
+    int ret = send_custom_cmd(ldata, &cmd, sizeof(cmd));
+
+    ALOGE_IF(ret || cmd.ret_val, "Failed to send NAVIGATION_ENTER rc=%d s=%d", ret, cmd.ret_val);
+
+    return ret || cmd.ret_val;
+}
+
+err_t fpc_navi_exit(fpc_imp_data_t *data)
+{
+    ALOGV(__func__);
+    fpc_data_t *ldata = (fpc_data_t *)data;
+
+    fpc_navi_cmd_t cmd = {
+        .group_id = FPC_GROUP_NAVIGATION,
+        .cmd_id = FPC_NAVIGATION_EXIT,
+    };
+
+    int ret = send_custom_cmd(ldata, &cmd, sizeof(cmd));
+
+    ALOGE_IF(ret || cmd.ret_val, "Failed to send NAVIGATION_EXIT rc=%d s=%d", ret, cmd.ret_val);
+
+    return ret || cmd.ret_val;
+}
+
+err_t fpc_navi_poll(fpc_imp_data_t *data)
+{
+    ALOGV(__func__);
+    fpc_data_t *ldata = (fpc_data_t *)data;
+    int ret = 0;
+
+    fpc_navi_cmd_t cmd = {
+        .group_id = FPC_GROUP_NAVIGATION,
+        .cmd_id = FPC_NAVIGATION_POLL,
+    };
+
+    // Bail out early when an event is available, instead of
+    // waiting for FPC_EVENT_EVENTFD from fpc_poll_event:
+    while (!is_event_available(&data->event)) {
+        ret = send_custom_cmd(ldata, &cmd, sizeof(cmd));
+
+        ALOGE_IF(ret || cmd.ret_val, "Failed to send NAVIGATION_POLL rc=%d s=%d", ret, cmd.ret_val);
+        if (ret || cmd.ret_val)
+            return ret || cmd.ret_val;
+
+        ALOGV("Gesture: %d, down: %d, poll: %d, mask: %x", cmd.gesture, cmd.finger_on, cmd.should_poll, cmd.mask);
+
+        if (cmd.gesture) {
+            switch (cmd.gesture) {
+                case FPC_GESTURE_UP:
+                    ALOGI("Gesture: Up");
+                    fpc_uinput_click(&data->uinput, KEY_UP);
+                    break;
+                case FPC_GESTURE_DOWN:
+                    ALOGI("Gesture: Down");
+                    fpc_uinput_click(&data->uinput, KEY_DOWN);
+                    break;
+                case FPC_GESTURE_LEFT:
+                    ALOGI("Gesture: Left");
+                    fpc_uinput_click(&data->uinput, KEY_LEFT);
+                    break;
+                case FPC_GESTURE_RIGHT:
+                    ALOGI("Gesture: Right");
+                    fpc_uinput_click(&data->uinput, KEY_RIGHT);
+                    break;
+
+                    // Not handled:
+                case FPC_GESTURE_GONE:
+                    // Single tap but could also be an unknown-gesture error,
+                    // as it happens when sliding too fast and not holding it
+                    // near the end.
+                    ALOGI("Gesture: Finger gone");
+                    break;
+                case FPC_GESTURE_HOLD:
+                    ALOGI("Gesture: Hold");
+                    break;
+                case FPC_GESTURE_DOUBLE_TAP:
+                    ALOGI("Gesture: Double tap");
+                    break;
+            }
+        }
+
+        if (!cmd.should_poll) {
+            // Decrease spam on TZ. Sleeping for such a short time
+            // (contrary to multiple milliseconds) makes the gestures
+            // much more responsive and accurate.
+            usleep(10);
+        } else {
+            ALOGW_IF(cmd.should_poll == 2, "%s: Need to do something special on should_poll == 2!", __func__);
+            ret = fpc_poll_event(&data->event);
+
+            if (ret == FPC_EVENT_ERROR)
+                return -1;
+            if (ret != FPC_EVENT_FINGER)
+                // No error, but an event needs to be handled:
+                return 0;
+        }
+    }
+
+    return ret;
+}
+
 err_t fpc_enroll_step(fpc_imp_data_t *data, uint32_t *remaining_touches)
 {
     ALOGV(__func__);
@@ -722,6 +837,7 @@ err_t fpc_close(fpc_imp_data_t **data)
     }
 
     fpc_event_destroy(&ldata->data.event);
+    fpc_uinput_destroy(&ldata->data.uinput);
 
     qsee_free_handle(&ldata->qsee_handle);
     free(ldata);
@@ -746,6 +862,7 @@ err_t fpc_init(fpc_imp_data_t **data, int event_fd)
     fpc_data->auth_id = 0;
 
     fpc_event_create(&fpc_data->data.event, event_fd);
+    fpc_uinput_create(&fpc_data->data.uinput);
 
     if (fpc_set_power(&fpc_data->data.event, FPC_PWRON) < 0) {
         ALOGE("Error starting device\n");

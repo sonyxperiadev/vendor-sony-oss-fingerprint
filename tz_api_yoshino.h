@@ -17,7 +17,7 @@
 #ifndef __TZAPI_H_
 #define __TZAPI_H_
 
-#include <stdint.h>
+#include "tz_api_yoshino_nile_tama.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,6 +41,7 @@ enum fingerprint_group_t {
     FPC_GROUP_FPCDATA = 0x3,
     FPC_GROUP_DEBUG = 0x6, // I think?
     FPC_GROUP_QC = 0x07,
+    FPC_GROUP_NAVIGATION = 0x8,
     FPC_GROUP_INFO = 0x09,
     FPC_GROUP_SENSOR = 0xA,
     FPC_GROUP_TEMPLATE = 0xB,

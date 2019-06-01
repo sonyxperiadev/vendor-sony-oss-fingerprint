@@ -299,7 +299,7 @@ bool BiometricsFingerprint::startWorker() {
         return false;
     }
 
-    mDevice->worker.running_state = STATE_IDLE;
+    mDevice->worker.running_state = STATE_INVALID;
 
     return true;
 }
@@ -316,20 +316,18 @@ enum worker_state BiometricsFingerprint::getNextState() {
     return state;
 }
 
-bool BiometricsFingerprint::isEventAvailable() {
+bool BiometricsFingerprint::isEventAvailable(int timeout) {
     struct epoll_event event;
 
-    // 0 = do not block at all:
-    int cnt = epoll_wait(mDevice->worker.epoll_fd, &event, 1, 0);
+    int cnt = epoll_wait(mDevice->worker.epoll_fd, &event, 1, timeout);
 
     if (cnt < 0) {
         ALOGE("Failed polling eventfd: %d", cnt);
-        return cnt;
+        return false;
     }
 
     bool available = cnt > 0;
-    if (available)
-        ALOGI("%s : true", __func__);
+    ALOGV("%s : available=%d", __func__, available);
 
     return available;
 }
@@ -370,19 +368,23 @@ void * BiometricsFingerprint::worker_thread(void *args) {
 
 void BiometricsFingerprint::workerThread() {
     bool thread_running = true;
-    static const int EVENTS = 2;
-    struct epoll_event evnts[EVENTS];
 
     ALOGI("START");
 
     while (thread_running) {
         mDevice->worker.running_state = STATE_IDLE;
-        epoll_wait(mDevice->worker.epoll_fd, evnts, EVENTS, -1);
-        // Poll always returns if the data in the eventfd is non-zero.
 
         switch (getNextState()) {
             case STATE_IDLE:
                 ALOGI("%s : IDLE", __func__);
+                if (fpc_navi_supported(mDevice->fpc)) {
+                    // Never poll on an event. If nothing is going on, switch
+                    // to navigation/gesture capture state.
+                    processNavigation();
+                } else {
+                    // Without navigation gestures, indefinitely block:
+                    isEventAvailable(-1);
+                }
                 break;
             case STATE_ENROLL:
                 mDevice->worker.running_state =  STATE_ENROLL;
@@ -408,6 +410,30 @@ void BiometricsFingerprint::workerThread() {
     }
 
     ALOGI("%s -", __func__);
+}
+
+void BiometricsFingerprint::processNavigation() {
+    ALOGD(__func__);
+    int rc;
+
+    if (fpc_set_power(&mDevice->fpc->event, FPC_PWRON) < 0) {
+        ALOGE("Error starting device");
+        return;
+    }
+
+    rc = fpc_navi_enter(mDevice->fpc);
+    ALOGE_IF(rc, "Failed to enter navigation state: rc=%d", rc);
+
+    if (!rc) {
+        rc = fpc_navi_poll(mDevice->fpc);
+        ALOGE_IF(rc, "Failed to poll navigation: rc=%d", rc);
+
+        rc = fpc_navi_exit(mDevice->fpc);
+        ALOGE_IF(rc, "Failed to exit navigation: rc=%d", rc);
+    }
+
+    if (fpc_set_power(&mDevice->fpc->event, FPC_PWROFF) < 0)
+        ALOGE("Error stopping device");
 }
 
 void BiometricsFingerprint::processEnroll() {

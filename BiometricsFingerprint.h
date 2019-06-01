@@ -47,6 +47,7 @@ using ::android::hardware::hidl_string;
 using ::android::sp;
 
 enum worker_state {
+    STATE_INVALID = -1,
     STATE_IDLE = 0,
     STATE_ENROLL,
     STATE_AUTH,
@@ -98,10 +99,11 @@ private:
     //Auth / Enroll thread functions
     bool startWorker();
     enum worker_state getNextState();
-    bool isEventAvailable();
+    bool isEventAvailable(int timeout = /* Do not block at all: */ 0);
     bool setState(enum worker_state state);
     static void * worker_thread(void *args);
     void workerThread();
+    void processNavigation();
     void processEnroll();
     void processAuth();
 

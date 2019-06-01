@@ -30,6 +30,7 @@ typedef struct
 
 typedef struct fpc_imp_data_t {
     fpc_event_t event;
+    fpc_uinput_t uinput;
 } fpc_imp_data_t;
 
 int64_t fpc_load_db_id(fpc_imp_data_t *data); //load db ID, used as authenticator ID in android
@@ -63,5 +64,11 @@ err_t fpc_load_empty_db(fpc_imp_data_t *data);
 err_t fpc_store_user_db(fpc_imp_data_t *data, uint32_t length, char* path); //store running TZ db
 err_t fpc_close(fpc_imp_data_t **data); //close this implementation
 err_t fpc_init(fpc_imp_data_t **data, int event_fd); //init sensor
+
+
+bool fpc_navi_supported(fpc_imp_data_t *data);
+err_t fpc_navi_enter(fpc_imp_data_t *data);
+err_t fpc_navi_exit(fpc_imp_data_t *data);
+err_t fpc_navi_poll(fpc_imp_data_t *data);
 
 #endif

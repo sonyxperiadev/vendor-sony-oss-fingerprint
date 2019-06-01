@@ -17,7 +17,7 @@
 #ifndef __TZAPI_H_
 #define __TZAPI_H_
 
-#include <stdint.h>
+#include "tz_api_yoshino_nile_tama.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,14 +41,10 @@ enum fingerprint_group_t {
     FPC_GROUP_FPCDATA = 0x3,
     FPC_GROUP_DEBUG = 0x6, // I think?
     FPC_GROUP_QC = 0x07,
+    FPC_GROUP_NAVIGATION = 0x8,
     FPC_GROUP_INFO = 0x09,
     FPC_GROUP_SENSOR = 0xA,
     FPC_GROUP_TEMPLATE = 0xB,
-};
-
-enum fingerprint_db_cmd_t {
-    FPC_LOAD_DB = 0x0B,
-    FPC_STORE_DB = 0x0C,
 };
 
 enum fingerprint_fpcdata_cmd_t {
@@ -91,6 +87,11 @@ enum fingerprint_qc_cmd_t {
     FPC_SET_QC_AUTH_NONCE = 0x01,
     FPC_GET_QC_AUTH_RESULT = 0x02,
     FPC_IS_USER_VALID = 0x03,
+};
+
+enum fingerprint_db_cmd_t {
+    FPC_LOAD_DB = 0x0B,
+    FPC_STORE_DB = 0x0C,
 };
 
 enum fingerprint_info_cmd_t {

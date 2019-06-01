@@ -401,6 +401,29 @@ err_t fpc_capture_image(fpc_imp_data_t *data)
     return ret;
 }
 
+bool fpc_navi_supported(fpc_imp_data_t __unused *data)
+{
+    return false;
+}
+
+err_t fpc_navi_enter(fpc_imp_data_t __unused *data)
+{
+    ALOGV(__func__);
+    return -ENOSYS;
+}
+
+err_t fpc_navi_exit(fpc_imp_data_t __unused *data)
+{
+    ALOGV(__func__);
+    return -ENOSYS;
+}
+
+err_t fpc_navi_poll(fpc_imp_data_t __unused *data)
+{
+    ALOGV(__func__);
+    return -ENOSYS;
+}
+
 err_t fpc_enroll_step(fpc_imp_data_t *data, uint32_t *remaining_touches)
 {
     ALOGV(__func__);
@@ -602,7 +625,7 @@ err_t fpc_store_user_db(fpc_imp_data_t *data, uint32_t __unused length, char* pa
 err_t fpc_close(fpc_imp_data_t **data)
 {
     ALOGV(__func__);
-    fpc_data_t *ldata = (fpc_data_t*)data;
+    fpc_data_t *ldata = (fpc_data_t*)*data;
 
     ldata->qsee_handle->shutdown_app(&ldata->fpc_handle);
     if (fpc_set_power(&(*data)->event, FPC_PWROFF) < 0) {
@@ -611,6 +634,7 @@ err_t fpc_close(fpc_imp_data_t **data)
     }
 
     fpc_event_destroy(&ldata->data.event);
+    fpc_uinput_destroy(&ldata->data.uinput);
 
     qsee_free_handle(&ldata->qsee_handle);
     free(ldata);
@@ -636,6 +660,7 @@ err_t fpc_init(fpc_imp_data_t **data, int event_fd)
     fpc_data->auth_id = 0;
 
     fpc_event_create(&fpc_data->data.event, event_fd);
+    fpc_uinput_create(&fpc_data->data.uinput);
 
     if (fpc_set_power(&fpc_data->data.event, FPC_PWRON) < 0) {
         ALOGE("Error starting device\n");
