@@ -24,6 +24,7 @@
 #include <pthread.h>
 #include <android/hardware/biometrics/fingerprint/2.1/IBiometricsFingerprint.h>
 #include <mutex>
+#include <condition_variable>
 #if PLATFORM_SDK_VERSION >= 28
 #include <bits/epoll_event.h>
 #endif
@@ -48,10 +49,34 @@ using ::android::sp;
 
 enum worker_state {
     STATE_INVALID = -1,
+    /**
+     * In idle state the thread eventually transitions into navigation state,
+     * where the sensor waits for navigation gestures from the user.
+     *
+     * Note that the zero state is chosen deliberately. Whenever events
+     * are consumed (eventfd_read) the underlying counter is reset to zero,
+     * meaning that we implicitly always transition into this mode.
+     * When the application needs the thread to not touch the TZ at all,
+     * use STATE_POLL.
+     */
     STATE_IDLE = 0,
+    /**
+     * In poll state, the thread indefinitely blocks for future instructions.
+     *
+     * Useful to make sure the thread is not doing anything, such that the
+     * current/main/service thread can touch the TZ (setup commands in
+     * enroll() or authenticate() for example).
+     */
+    STATE_POLL,
     STATE_ENROLL,
     STATE_AUTH,
     STATE_EXIT,
+    /**
+     * Helper to kick the thread out of any operation.
+     * Because it's non-zero, any poll wakes up immediately. Implementations
+     * are supposed to return control to the worker thread handler, which
+     * consumes the state to move into STATE_IDLE.
+     */
     STATE_CANCEL,
 };
 
@@ -98,9 +123,14 @@ private:
 
     //Auth / Enroll thread functions
     bool startWorker();
-    enum worker_state getNextState();
+
+    worker_state getNextState();
     bool isEventAvailable(int timeout = /* Do not block at all: */ 0);
-    bool setState(enum worker_state state);
+    bool setState(worker_state);
+    bool waitForState(worker_state, worker_state cmp_state = STATE_INVALID);
+    void setRunningState(worker_state);
+    bool clearThread();
+    bool resumeNavigation();
     static void * worker_thread(void *args);
     void workerThread();
     void processNavigation();
@@ -108,6 +138,8 @@ private:
     void processAuth();
 
     std::mutex mClientCallbackMutex;
+    std::mutex mEventfdMutex;
+    std::condition_variable mThreadStateChanged;
     sp<IBiometricsFingerprintClientCallback> mClientCallback;
     sony_fingerprint_device_t *mDevice;
     uint64_t auth_challenge;
