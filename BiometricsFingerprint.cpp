@@ -489,7 +489,9 @@ void * BiometricsFingerprint::worker_thread(void *args) {
 }
 
 void BiometricsFingerprint::workerThread() {
+    bool navi_supported = fpc_navi_supported(mDevice->fpc);
     bool thread_running = true;
+    bool event_available;
 
     ALOGI("%s : START", __func__);
 
@@ -502,12 +504,16 @@ void BiometricsFingerprint::workerThread() {
             case STATE_IDLE:
                 ALOGI("%s : IDLE", __func__);
                 setRunningState(STATE_IDLE);
-                if (fpc_navi_supported(mDevice->fpc)) {
+                // Wait for a new state for at most 200ms before entering navigation mode.
+                // This gives the service some time to execute multiple commands on the HAL
+                // sequentially before needlessly going into navigation mode and exit it
+                // almost immediately after.
+                event_available = isEventAvailable(navi_supported ? 200 : -1);
+                if (navi_supported && !event_available)
+                    // Only enter navigation state when no event triggered
                     processNavigation();
-                } else {
-                    // Without navigation gestures, indefinitely block:
-                    isEventAvailable(-1);
-                }
+                else if (navi_supported)
+                    ALOGD("IDLE exit: Handle event instead of navigation");
                 break;
             case STATE_POLL:
                 ALOGI("%s : POLL", __func__);
