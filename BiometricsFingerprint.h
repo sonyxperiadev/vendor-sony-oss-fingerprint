@@ -127,6 +127,7 @@ private:
     worker_state getNextState();
     bool isEventAvailable(int timeout = /* Do not block at all: */ 0);
     bool setState(worker_state);
+    bool setState(worker_state, const std::unique_lock<std::mutex> &);
     bool waitForState(worker_state, worker_state cmp_state = STATE_INVALID);
     void setRunningState(worker_state);
     bool clearThread();

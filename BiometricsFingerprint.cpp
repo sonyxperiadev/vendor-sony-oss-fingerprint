@@ -361,6 +361,19 @@ bool BiometricsFingerprint::isEventAvailable(int timeout) {
 }
 
 bool BiometricsFingerprint::setState(worker_state state) {
+    std::unique_lock<std::mutex> lock(mEventfdMutex);
+    return setState(state, lock);
+}
+
+/**
+ * Write a different eventfd state, assuming the caller locked the mutex.
+ *
+ * The unique_lock is passed in for the caller to prove that it owns mEventfdMutex.
+ */
+bool BiometricsFingerprint::setState(worker_state state, const std::unique_lock<std::mutex> &lock) {
+    LOG_ALWAYS_FATAL_IF(lock.mutex() != &mEventfdMutex || !lock.owns_lock(),
+                        "Caller didn't lock mEventfdMutex!");
+
     worker_state current_state = mDevice->worker.running_state;
 
     // Safety checks. It makes no sense to transition away from or towards a certain combination of states:
@@ -408,7 +421,7 @@ bool BiometricsFingerprint::waitForState(worker_state state, worker_state cmp_st
         return true;
     }
 
-    if (!setState(state)) {
+    if (!setState(state, lock)) {
         ALOGE("Failed to transition to %d from %d",
             state, mDevice->worker.running_state);
         return false;
