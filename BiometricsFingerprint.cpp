@@ -19,6 +19,7 @@
 
 #include "BiometricsFingerprint.h"
 
+#include <chrono>
 #include <inttypes.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -407,6 +408,8 @@ bool BiometricsFingerprint::setState(worker_state state, const std::unique_lock<
  * going into STATE_IDLE directly after.
  */
 bool BiometricsFingerprint::waitForState(worker_state state, worker_state cmp_state) {
+    constexpr auto wait_timeout = std::chrono::seconds(3);
+
     if (cmp_state == STATE_INVALID)
         cmp_state = state;
 
@@ -428,14 +431,14 @@ bool BiometricsFingerprint::waitForState(worker_state state, worker_state cmp_st
     }
 
     // Wait for the thread to enter the new state:
-    mThreadStateChanged.wait(lock, [&]() {
+    bool success = mThreadStateChanged.wait_for(lock, wait_timeout, [&]() {
         return mDevice->worker.running_state == cmp_state;
     });
 
-    // Sanity check:
-    LOG_ALWAYS_FATAL_IF(mDevice->worker.running_state != cmp_state,
-        "Failed waiting for %d after setting state %d. Are you writing race conditions??",
-        cmp_state, state);
+    // Always crash, instead of blocking forever:
+    LOG_ALWAYS_FATAL_IF(!success,
+        "Timed out waiting for %d for %llds, after setting state %d. Are you writing race conditions??",
+        cmp_state, wait_timeout.count(), state);
 
     ALOGD("%s: Successfully switched to %d", __func__, cmp_state);
 
