@@ -23,16 +23,18 @@ enum class CommandId : uint32_t {
     GetImage = 8,
     GetEnrolledCount = 9,
 
+    InitializeEnroll = 0xb,
+    Enroll = 0xc,
+    FinalizeEnroll = 0xd,
+    SaveEnrolledPrint = 0xe,
+
     InitializeIdentify = 0xf,
     Identify = 0x10,
     FinalizeIdentify = 0x11,
     UpdateTemplate = 0x12,
     SaveTemplate = 0x13,
 
-    InitializeEnroll = 0xb,
-    Enroll = 0xc,
-    FinalizeEnroll = 0xd,
-    SaveEnrolledPrint = 0xe,
+    GetNavEvent = 0x14,
 
     RemovePrint = 0x15,
     GetPrintIds = 0x16,
@@ -61,6 +63,12 @@ enum class ImageResult : uint32_t {
     Nothing = 10,
     Mediocre = 0xc,
     DirtOnSensor = 0xd,
+};
+
+enum class WorkMode : uint32_t {
+    Detect = 1,
+    Sleep = 2,
+    NavigationDetect = 3,
 };
 
 /**
@@ -188,13 +196,14 @@ class EGISAPTrustlet : public QSEETrustlet {
     API GetLockedAPI();
 
     int Calibrate();
+    int GetNavEvent(int &which);
     int GetPrintIds(uint32_t gid, std::vector<uint32_t> &);
     int InitializeAlgo();
     int InitializeSensor();
     int SetDataPath(const char *);
     int SetMasterKey(const MasterKey &);
     int SetUserDataPath(uint32_t gid, const char *);
-    int SetWorkMode(uint32_t);
+    int SetWorkMode(WorkMode);
     int UninitializeAlgo();
     int UninitializeSdk();
     int UninitializeSensor();

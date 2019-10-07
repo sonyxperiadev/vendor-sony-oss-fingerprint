@@ -50,22 +50,10 @@ void WorkerThread::RunThread() {
         auto nextState = ReadState();
         currentState = nextState;
         switch (nextState) {
-            case AsyncState::Idle: {
-                // Notify the handler, such that it can force a
-                // power-saving mode on the hardware.
+            case AsyncState::Idle:
+                mHandler->HandleGesturesAsync();
                 mHandler->OnEnterIdle();
-
-                // NOTE: Not using WaitForEvent() here, because we are not interested
-                // in wakeups from the fp device, only in events.
-                struct pollfd pfd = {
-                    .fd = event_fd,
-                    .events = POLLIN,
-                };
-                int cnt = poll(&pfd, 1, -1);
-                if (cnt <= 0)
-                    ALOGW("Infinite poll returned with %d", cnt);
                 break;
-            }
             case AsyncState::Cancel:
                 // Non-zero eventfd state to unblock pollers
                 break;

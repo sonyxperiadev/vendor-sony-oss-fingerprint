@@ -22,6 +22,8 @@ struct WorkHandler {
     virtual void EnrollAsync() = 0;
     inline virtual void OnEnterIdle() {
     }
+    inline virtual void HandleGesturesAsync() {
+    }
 
     inline virtual ~WorkHandler() {
     }

@@ -11,6 +11,7 @@
 #include <array>
 #include "EGISAPTrustlet.h"
 #include "QSEEKeymasterTrustlet.h"
+#include "UInput.h"
 
 namespace egistec::ganges {
 
@@ -49,6 +50,7 @@ struct BiometricsFingerprint : public IBiometricsFingerprint, public WorkHandler
     MasterKey mMasterKey;
     sp<IBiometricsFingerprintClientCallback> mClientCallback;
     std::mutex mClientCallbackMutex;
+    UInput uinput;
     uint32_t mGid = -1;
     WorkerThread mWt;
 
@@ -62,6 +64,7 @@ struct BiometricsFingerprint : public IBiometricsFingerprint, public WorkHandler
     void AuthenticateAsync() override;
     void EnrollAsync() override;
     void OnEnterIdle() override;
+    void HandleGesturesAsync() override;
 
     void NotifyAcquired(FingerprintAcquiredInfo);
     void NotifyAuthenticated(uint32_t fid, const hw_auth_token_t &hat);

@@ -166,6 +166,31 @@ int EGISAPTrustlet::Calibrate() {
     return SendCommand(CommandId::Calibrate);
 }
 
+/**
+ * Returns negative on error,
+ * positive on event */
+int EGISAPTrustlet::GetNavEvent(int &which) {
+    TypedIonBuffer<int> keycode_buf;
+
+    auto api = GetLockedAPI();
+    int rc = SendModifiedCommand(api, keycode_buf, CommandId::GetNavEvent, /* GID: */ 0);
+
+    if (rc) {
+        ALOGE("%s: rc=%d", __func__, rc);
+        return rc;
+    }
+
+    LOG_ALWAYS_FATAL_IF(api.Base().extra_buffer_size != sizeof(which),
+                        "%s: did not return exactly %zu bytes!",
+                        __func__,
+                        sizeof(which));
+
+    which = *keycode_buf;
+    ALOGV("%s: which=%d", __func__, which);
+
+    return 0;
+}
+
 int EGISAPTrustlet::GetPrintIds(uint32_t gid, std::vector<uint32_t> &list) {
     struct print_ids_t {
         uint32_t ids[5];
@@ -217,9 +242,9 @@ int EGISAPTrustlet::SetUserDataPath(uint32_t gid, const char *data_path) {
     return SendDataCommand(CommandId::SetUserDataPath, data_path, strlen(data_path), gid);
 }
 
-int EGISAPTrustlet::SetWorkMode(uint32_t workMode) {
+int EGISAPTrustlet::SetWorkMode(WorkMode workMode) {
     // WARNING: Work mode is passed in through gid!
-    return SendCommand(CommandId::SetWorkMode, workMode);
+    return SendCommand(CommandId::SetWorkMode, (uint32_t)workMode);
 }
 
 int EGISAPTrustlet::UninitializeAlgo() {
