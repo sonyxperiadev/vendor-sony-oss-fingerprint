@@ -2,7 +2,6 @@
 #define FINGERPRINT_COMMON_H
 
 #include <stdint.h>
-#include <linux/uinput.h>
 
 #define FPC_IOC_MAGIC	0x1145
 #define FPC_IOCWPREPARE	_IOW(FPC_IOC_MAGIC, 0x01, int)
@@ -32,10 +31,6 @@ typedef struct {
     int event_fd;
 } fpc_event_t;
 
-typedef struct {
-    int fd;
-} fpc_uinput_t;
-
 typedef int32_t err_t;
 
 err_t fpc_event_create(fpc_event_t *, int event_fd);
@@ -57,10 +52,5 @@ err_t is_event_available(const fpc_event_t *event);
  * Note that \p timeout is clamped to a maximum defined in the driver.
  */
 err_t fpc_keep_awake(const fpc_event_t *event, int awake, unsigned int timeout);
-
-err_t fpc_uinput_create(fpc_uinput_t *);
-err_t fpc_uinput_destroy(fpc_uinput_t *);
-err_t fpc_uinput_send(const fpc_uinput_t *, short keycode, short value);
-err_t fpc_uinput_click(const fpc_uinput_t *uinput, short keycode);
 
 #endif //FINGERPRINT_COMMON_H

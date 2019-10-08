@@ -20,6 +20,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "common.h"
+#include "UInput.h"
 
 #define MAX_FINGERPRINTS 5
 typedef struct
