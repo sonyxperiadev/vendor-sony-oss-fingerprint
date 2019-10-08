@@ -98,7 +98,7 @@ Return<RequestStatus> BiometricsFingerprint::enroll(const hidl_array<uint8_t, 69
     const hw_auth_token_t* authToken =
         reinterpret_cast<const hw_auth_token_t*>(hat.data());
 
-    if (!clearThread())
+    if (!pauseThread())
         return RequestStatus::SYS_EBUSY;
 
     ALOGI("%s : hat->challenge %lu",__func__,(unsigned long) authToken->challenge);
@@ -129,8 +129,6 @@ Return<uint64_t> BiometricsFingerprint::getAuthenticatorId() {
 Return<RequestStatus> BiometricsFingerprint::cancel() {
     ALOGI("%s",__func__);
 
-    // Resuming navigation queues a STATE_CANCEL and waits
-    // for STATE_IDLE:
     if (resumeNavigation()) {
         ALOGI("%s : Successfully moved to idle state", __func__);
         return RequestStatus::SYS_OK;
@@ -150,7 +148,7 @@ Return<RequestStatus> BiometricsFingerprint::enumerate() {
 
     ALOGV(__func__);
 
-    if (!clearThread())
+    if (!pauseThread())
         return RequestStatus::SYS_EBUSY;
 
     fpc_fingerprint_index_t print_indexs;
@@ -186,7 +184,7 @@ Return<RequestStatus> BiometricsFingerprint::remove(uint32_t gid, uint32_t fid) 
         return ErrorFilter(-1);
     }
 
-    if (!clearThread())
+    if (!pauseThread())
         return RequestStatus::SYS_EBUSY;
 
     Return<RequestStatus> ret = RequestStatus::SYS_OK;
@@ -264,7 +262,7 @@ Return<RequestStatus> BiometricsFingerprint::setActiveGroup(uint32_t gid,
 
     ALOGI("%s : storage path set to : %s", __func__, mDevice->db_path);
 
-    if (!clearThread())
+    if (!pauseThread())
         return RequestStatus::SYS_EBUSY;
 
     result = __setActiveGroup(gid);
@@ -281,7 +279,7 @@ Return<RequestStatus> BiometricsFingerprint::authenticate(uint64_t operation_id,
 
     ALOGI("%s: operation_id=%ju", __func__, operation_id);
 
-    if (!clearThread())
+    if (!pauseThread())
         return RequestStatus::SYS_EBUSY;
 
     r = fpc_set_auth_challenge(mDevice->fpc, operation_id);
@@ -322,19 +320,29 @@ bool BiometricsFingerprint::startWorker() {
     }
 
     mDevice->worker.running_state = STATE_INVALID;
+    mDevice->worker.desired_state = STATE_INVALID;
 
     return true;
 }
 
 worker_state BiometricsFingerprint::getNextState() {
-    eventfd_t requestedState;
+    std::unique_lock<std::mutex> lock(mEventfdMutex);
+    eventfd_t stateAvailable;
     worker_state state = STATE_IDLE;
 
-    int rc = eventfd_read(mDevice->worker.event_fd, &requestedState);
-    if (!rc)
-        state = (worker_state)requestedState;
+    int rc = eventfd_read(mDevice->worker.event_fd, &stateAvailable);
+    // When data is read, stateAvailable will be non-zero.
+    if (!rc) {
+        LOG_ALWAYS_FATAL_IF(mDevice->worker.desired_state == STATE_INVALID,
+                            "Requested state is invalid! %d", mDevice->worker.desired_state);
+        state = mDevice->worker.desired_state;
+    }
 
     ALOGV("%s : %d", __func__, state);
+
+    mDevice->worker.running_state = state;
+    mThreadStateChanged.notify_all();
+
     return state;
 }
 
@@ -371,25 +379,10 @@ bool BiometricsFingerprint::setState(worker_state state, const std::unique_lock<
     LOG_ALWAYS_FATAL_IF(lock.mutex() != &mEventfdMutex || !lock.owns_lock(),
                         "Caller didn't lock mEventfdMutex!");
 
-    worker_state current_state = mDevice->worker.running_state;
+    ALOGD("%s : Setting state to %d", __func__, state);
+    mDevice->worker.desired_state = state;
 
-    // Safety checks. It makes no sense to transition away from or towards a certain combination of states:
-    bool cant_transition_away = current_state != STATE_POLL && current_state != STATE_IDLE;
-    bool cant_transition_to = state != STATE_POLL && state != STATE_CANCEL;
-
-    if (cant_transition_away && cant_transition_to) {
-        ALOGE("%s : Invalid state transition to %d when still processing %d", __func__, state, current_state);
-        return false;
-    }
-
-    if (current_state == state) {
-        ALOGW("%s : Already running in state = %d", __func__, state);
-        // Still okay - this is a very unlikely sitation.
-        return true;
-    }
-
-    ALOGD("%s : Setting state to = %d", __func__, state);
-    int rc = eventfd_write(mDevice->worker.event_fd, state);
+    int rc = eventfd_write(mDevice->worker.event_fd, 1);
     if (rc)
         ALOGE("%s : Failed to write state to eventfd: %d", __func__, rc);
     return !rc;
@@ -398,92 +391,51 @@ bool BiometricsFingerprint::setState(worker_state state, const std::unique_lock<
 /**
  * Request the thread to switch to \p state, and wait for the transition
  * to happen.
- * Optionally takes a desired state to compare against. This is used when
- * the requested transition results in a different state.
- * For example, requesting STATE_CANCEL results in the thread waking up and
- * going into STATE_IDLE directly after.
  */
-bool BiometricsFingerprint::waitForState(worker_state state, worker_state cmp_state) {
+bool BiometricsFingerprint::waitForState(worker_state state) {
     constexpr auto wait_timeout = std::chrono::seconds(3);
-
-    if (cmp_state == STATE_INVALID)
-        cmp_state = state;
 
     std::unique_lock<std::mutex> lock(mEventfdMutex);
 
-    ALOGD("%s: set=%d, wait_for=%d", __func__, state, cmp_state);
-
-    if (mDevice->worker.running_state == cmp_state) {
-        ALOGD("%s: Already in state %d", __func__, cmp_state);
-        // Writing `state` will cause trouble, as the condition below
-        // will most likely return true while `state` is still in-flight.
-        return true;
-    }
-
     if (!setState(state, lock)) {
-        ALOGE("Failed to transition to %d from %d",
-            state, mDevice->worker.running_state);
+        ALOGE("Failed to transition from %d to %d",
+            mDevice->worker.running_state, state);
         return false;
     }
 
     // Wait for the thread to enter the new state:
     bool success = mThreadStateChanged.wait_for(lock, wait_timeout, [&]() {
-        return mDevice->worker.running_state == cmp_state;
+        return mDevice->worker.running_state == state;
     });
 
     // Always crash, instead of blocking forever:
     LOG_ALWAYS_FATAL_IF(!success,
-        "Timed out waiting for %d for %llds, after setting state %d. Are you writing race conditions??",
-        cmp_state, wait_timeout.count(), state);
+        "Timed out waiting for %d for %llds. Are you writing race conditions??",
+        state, wait_timeout.count());
 
-    ALOGD("%s: Successfully switched to %d", __func__, cmp_state);
+    ALOGD("%s: Successfully switched to %d", __func__, state);
 
     return true;
 }
 
 /**
- * Update the current running_state and notify any waiters.
- */
-void BiometricsFingerprint::setRunningState(worker_state running_state) {
-    std::unique_lock<std::mutex> lock(mEventfdMutex);
-    mDevice->worker.running_state = running_state;
-    mThreadStateChanged.notify_all();
-}
-
-/**
  * Free the thread from doing anything, waiting for the next state
  * to be written.
- *
- * Why?
- * Instead of engineering a separate state for navigation gesture handling,
- * which involves switching to it at the right time (eg. when exiting
- * auth/enroll state) while being resilient against race conditions.
- * Those happen when the Service using this HAL calls another state
- * just as we are setState'ing to the navigation state. Mutexes, peeking
- * into the eventfd and the like are just not as elegant.
- *
- * The upside of having this in a non-zero state (much like STATE_CANCEL)
- * means that any poll on the eventfd returns immediately; when an operation
- * is blocking on the irq and eventfd it'll wake up, finalize and give
- * control back to the worker_thread.
  */
-// TODO: Find a MUCH better name for this
-bool BiometricsFingerprint::clearThread() {
+bool BiometricsFingerprint::pauseThread() {
     ALOGD("%s", __func__);
-    auto ret = waitForState(STATE_POLL);
+    auto ret = waitForState(STATE_PAUSE);
     ALOGE_IF(!ret, "%s failed", __func__);
     return ret;
 }
 
 /**
- * Cancels the current operation, and waits until the thread
- * is idling again.
- *
- * Usually used to cancel a STATE_POLL.
+ * Put the thread back in idle mode, eventually resuming navigation again.
  */
 bool BiometricsFingerprint::resumeNavigation() {
     ALOGD("%s", __func__);
-    auto ret = waitForState(STATE_CANCEL, STATE_IDLE);
+    // Not waiting for the next state, since it may happen at any moment
+    auto ret = setState(STATE_IDLE);
     ALOGE_IF(!ret, "%s failed", __func__);
     return ret;
 }
@@ -515,7 +467,6 @@ void BiometricsFingerprint::workerThread() {
         switch (nextState) {
             case STATE_IDLE:
                 ALOGI("%s : IDLE", __func__);
-                setRunningState(STATE_IDLE);
                 // Wait for a new state for at most 200ms before entering navigation mode.
                 // This gives the service some time to execute multiple commands on the HAL
                 // sequentially before needlessly going into navigation mode and exit it
@@ -527,29 +478,22 @@ void BiometricsFingerprint::workerThread() {
                 else if (navi_supported)
                     ALOGD("IDLE exit: Handle event instead of navigation");
                 break;
-            case STATE_POLL:
+            case STATE_PAUSE:
                 ALOGI("%s : POLL", __func__);
-                setRunningState(STATE_POLL);
                 isEventAvailable(-1);
                 // Poll always returns if the data in the eventfd is non-zero.
                 break;
             case STATE_ENROLL:
-                setRunningState(STATE_ENROLL);
                 ALOGI("%s : ENROLL", __func__);
                 processEnroll();
                 break;
             case STATE_AUTH:
-                setRunningState(STATE_AUTH);
                 ALOGI("%s : AUTH", __func__);
                 processAuth();
                 break;
             case STATE_EXIT:
-                setRunningState(STATE_EXIT);
                 ALOGI("%s : EXIT", __func__);
                 thread_running = false;
-                break;
-            case STATE_CANCEL:
-                // Non-zero eventfd state to unblock pollers
                 break;
             default:
                 ALOGW("%s : UNKNOWN worker state %d", __func__, nextState);
@@ -599,7 +543,6 @@ void BiometricsFingerprint::processEnroll() {
 
     if (fpc_set_power(&mDevice->fpc->event, FPC_PWRON) < 0) {
         ALOGE("Error starting device");
-        setRunningState(STATE_IDLE);
         mClientCallback->onError(devId, FingerprintError::ERROR_UNABLE_TO_PROCESS, 0);
         return;
     }
@@ -617,7 +560,6 @@ void BiometricsFingerprint::processEnroll() {
 
 
         if (isEventAvailable()) {
-            setRunningState(STATE_IDLE);
             mClientCallback->onError(devId, FingerprintError::ERROR_CANCELED, 0);
             break;
         }
@@ -645,7 +587,6 @@ void BiometricsFingerprint::processEnroll() {
 
                 if (print_index < 0){
                     ALOGE("%s : Error getting new print index : %d", __func__,print_index);
-                    setRunningState(STATE_IDLE);
                     mClientCallback->onError(devId, FingerprintError::ERROR_UNABLE_TO_PROCESS, 0);
                     break;
                 }
@@ -654,13 +595,11 @@ void BiometricsFingerprint::processEnroll() {
                 ALOGI("%s : User Database Length Is : %lu", __func__,(unsigned long) db_length);
                 fpc_store_user_db(mDevice->fpc, db_length, mDevice->db_path);
                 ALOGI("%s : Got print id : %lu", __func__,(unsigned long) print_id);
-                setRunningState(STATE_IDLE);
                 mClientCallback->onEnrollResult(devId, print_id, mDevice->gid, 0);
                 break;
             }
             else {
                 ALOGE("Error in enroll step, aborting enroll: %d\n", ret);
-                setRunningState(STATE_IDLE);
                 mClientCallback->onError(devId, FingerprintError::ERROR_UNABLE_TO_PROCESS, 0);
                 break;
             }
@@ -689,7 +628,6 @@ void BiometricsFingerprint::processAuth() {
 
     if (fpc_set_power(&mDevice->fpc->event, FPC_PWRON) < 0) {
         ALOGE("Error starting device");
-        setRunningState(STATE_IDLE);
         mClientCallback->onError(devId, FingerprintError::ERROR_UNABLE_TO_PROCESS, 0);
         return;
     }
@@ -700,7 +638,6 @@ void BiometricsFingerprint::processAuth() {
         ALOGV("%s : Got Input with status %d", __func__, status);
 
         if (isEventAvailable()) {
-            setRunningState(STATE_IDLE);
             mClientCallback->onError(devId, FingerprintError::ERROR_CANCELED, 0);
             break;
         }
@@ -763,7 +700,6 @@ void BiometricsFingerprint::processAuth() {
                     const uint8_t* hat2 = reinterpret_cast<const uint8_t *>(&hat);
                     const hidl_vec<uint8_t> token(std::vector<uint8_t>(hat2, hat2 + sizeof(hat)));
 
-                    setRunningState(STATE_IDLE);
                     mClientCallback->onAuthenticated(devId, fid, gid, token);
                     break;
                 } else {

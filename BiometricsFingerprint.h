@@ -44,36 +44,23 @@ using ::android::hardware::hidl_string;
 using ::android::sp;
 
 enum worker_state {
-    STATE_INVALID = -1,
+    STATE_INVALID,
     /**
-     * In idle state the thread eventually transitions into navigation state,
+     * In idle state the thread eventually transitions into navigation mode,
      * where the sensor waits for navigation gestures from the user.
-     *
-     * Note that the zero state is chosen deliberately. Whenever events
-     * are consumed (eventfd_read) the underlying counter is reset to zero,
-     * meaning that we implicitly always transition into this mode.
-     * When the application needs the thread to not touch the TZ at all,
-     * use STATE_POLL.
      */
-    STATE_IDLE = 0,
+    STATE_IDLE,
     /**
-     * In poll state, the thread indefinitely blocks for future instructions.
+     * In pause state, the thread indefinitely blocks for future instructions.
      *
      * Useful to make sure the thread is not doing anything, such that the
      * current/main/service thread can touch the TZ (setup commands in
      * enroll() or authenticate() for example).
      */
-    STATE_POLL,
+    STATE_PAUSE,
     STATE_ENROLL,
     STATE_AUTH,
     STATE_EXIT,
-    /**
-     * Helper to kick the thread out of any operation.
-     * Because it's non-zero, any poll wakes up immediately. Implementations
-     * are supposed to return control to the worker thread handler, which
-     * consumes the state to move into STATE_IDLE.
-     */
-    STATE_CANCEL,
 };
 
 
@@ -81,6 +68,7 @@ typedef struct {
     pthread_t thread;
     bool thread_running;
     worker_state running_state;
+    worker_state desired_state;
     int event_fd;
 } fpc_thread_t;
 
@@ -123,9 +111,8 @@ private:
     bool isEventAvailable(int timeout = /* Do not block at all: */ 0);
     bool setState(worker_state);
     bool setState(worker_state, const std::unique_lock<std::mutex> &);
-    bool waitForState(worker_state, worker_state cmp_state = STATE_INVALID);
-    void setRunningState(worker_state);
-    bool clearThread();
+    bool waitForState(worker_state);
+    bool pauseThread();
     bool resumeNavigation();
     static void * worker_thread(void *args);
     void workerThread();

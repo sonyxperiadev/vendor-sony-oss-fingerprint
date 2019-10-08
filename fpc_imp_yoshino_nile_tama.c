@@ -49,8 +49,8 @@ typedef struct {
     uint64_t auth_id;
 } fpc_data_t;
 
-err_t fpc_deep_sleep(fpc_imp_data_t *data);
-err_t fpc_sensor_wake(fpc_imp_data_t *data);
+static err_t fpc_deep_sleep(fpc_imp_data_t *data);
+static err_t fpc_sensor_wake(fpc_imp_data_t *data);
 
 static const char *error_strings[] = {
 #if defined(USE_FPC_NILE) || defined(USE_FPC_TAMA)
@@ -410,11 +410,9 @@ err_t fpc_capture_image(fpc_imp_data_t *data)
     {
         ALOGV("Finger lost as expected");
         int tries = 0;
-#ifdef USE_FPC_TAMA
         ret = fpc_sensor_wake(data);
         if (ret)
             return ret;
-#endif
         for (;;) {
             ret = fpc_wait_finger_down(data);
             ALOGV("fpc_wait_finger_down = 0x%08X", ret);
