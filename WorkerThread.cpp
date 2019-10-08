@@ -109,23 +109,23 @@ AsyncState WorkerThread::ReadState() const {
 }
 
 bool WorkerThread::IsEventAvailable() const {
-    int cnt;
-
     struct pollfd pfd = {
         .fd = event_fd,
         .events = POLLIN,
     };
 
     // 0 = do not block at all:
-    cnt = poll(&pfd, 1, 0);
+    int cnt = poll(&pfd, 1, 0);
 
     if (cnt < 0) {
-        ALOGE("%s: Failed waiting for epoll: %d", __func__, cnt);
-        return cnt;
+        ALOGE("%s: Failed polling eventfd: %d", __func__, cnt);
+        return false;
     }
 
-    ALOGD("%s: %d", __func__, cnt > 0);
-    return cnt > 0;
+    bool available = cnt > 0;
+    ALOGV("%s: available=%d", __func__, available);
+
+    return available;
 }
 
 bool WorkerThread::MoveToState(AsyncState nextState) {

@@ -25,10 +25,6 @@
 #include <android/hardware/biometrics/fingerprint/2.1/IBiometricsFingerprint.h>
 #include <mutex>
 #include <condition_variable>
-#if PLATFORM_SDK_VERSION >= 28
-#include <bits/epoll_event.h>
-#endif
-#include <sys/epoll.h>
 #include <sys/eventfd.h>
 
 extern "C" {
@@ -85,7 +81,6 @@ typedef struct {
     pthread_t thread;
     bool thread_running;
     worker_state running_state;
-    int epoll_fd;
     int event_fd;
 } fpc_thread_t;
 

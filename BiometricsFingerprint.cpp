@@ -19,12 +19,13 @@
 
 #include "BiometricsFingerprint.h"
 
+#include <byteswap.h>
 #include <chrono>
 #include <inttypes.h>
 #include <stdio.h>
-#include <unistd.h>
+#include <sys/poll.h>
 #include <sys/stat.h>
-#include <byteswap.h>
+#include <unistd.h>
 
 #include "android-base/macros.h"
 
@@ -310,14 +311,6 @@ sony_fingerprint_device_t *BiometricsFingerprint::openHal() {
     }
     sdev->fpc = fpc_data;
 
-    sdev->worker.epoll_fd = epoll_create1(0);
-    struct epoll_event evnt = {
-        .data.fd = sdev->worker.event_fd,
-        .events = EPOLLIN | EPOLLET,
-    };
-
-    epoll_ctl(sdev->worker.epoll_fd, EPOLL_CTL_ADD, sdev->worker.event_fd, &evnt);
-
     return sdev;
 }
 
@@ -346,12 +339,15 @@ worker_state BiometricsFingerprint::getNextState() {
 }
 
 bool BiometricsFingerprint::isEventAvailable(int timeout) {
-    struct epoll_event event;
+    struct pollfd pfd = {
+        .fd = mDevice->worker.event_fd,
+        .events = POLLIN,
+    };
 
-    int cnt = epoll_wait(mDevice->worker.epoll_fd, &event, 1, timeout);
+    int cnt = poll(&pfd, 1, timeout);
 
     if (cnt < 0) {
-        ALOGE("Failed polling eventfd: %d", cnt);
+        ALOGE("%s : Failed polling eventfd: %d", __func__, cnt);
         return false;
     }
 
