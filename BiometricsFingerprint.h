@@ -21,11 +21,9 @@
 #include <hardware/fingerprint.h>
 #include <hidl/MQDescriptor.h>
 #include <hidl/Status.h>
-#include <pthread.h>
 #include <android/hardware/biometrics/fingerprint/2.1/IBiometricsFingerprint.h>
 #include <mutex>
-#include <condition_variable>
-#include <sys/eventfd.h>
+#include "SynchronizedWorkerThread.h"
 
 extern "C" {
     #include "fpc_imp.h"
@@ -43,45 +41,15 @@ using ::android::hardware::hidl_vec;
 using ::android::hardware::hidl_string;
 using ::android::sp;
 
-enum worker_state {
-    STATE_INVALID,
-    /**
-     * In idle state the thread eventually transitions into navigation mode,
-     * where the sensor waits for navigation gestures from the user.
-     */
-    STATE_IDLE,
-    /**
-     * In pause state, the thread indefinitely blocks for future instructions.
-     *
-     * Useful to make sure the thread is not doing anything, such that the
-     * current/main/service thread can touch the TZ (setup commands in
-     * enroll() or authenticate() for example).
-     */
-    STATE_PAUSE,
-    STATE_ENROLL,
-    STATE_AUTH,
-    STATE_EXIT,
-};
-
-
 typedef struct {
-    pthread_t thread;
-    bool thread_running;
-    worker_state running_state;
-    worker_state desired_state;
-    int event_fd;
-} fpc_thread_t;
-
-typedef struct {
-    fpc_thread_t worker;
     fpc_imp_data_t *fpc;
     uint32_t gid;
     char db_path[255];
     uint64_t challenge;
 } sony_fingerprint_device_t;
 
-struct BiometricsFingerprint : public IBiometricsFingerprint {
-public:
+struct BiometricsFingerprint : public IBiometricsFingerprint, public ::SynchronizedWorker::WorkHandler {
+   public:
     BiometricsFingerprint();
     ~BiometricsFingerprint();
 
@@ -97,34 +65,24 @@ public:
     Return<RequestStatus> setActiveGroup(uint32_t gid, const hidl_string& storePath) override;
     Return<RequestStatus> authenticate(uint64_t operationId, uint32_t gid) override;
 
-private:
-    static sony_fingerprint_device_t* openHal();
+    // Methods from ::SynchronizedWorker::WorkHandler
+    inline ::SynchronizedWorker::Thread& getWorker() override {
+        return mWt;
+    }
+    void AuthenticateAsync() override;
+    void EnrollAsync() override;
+    void IdleAsync() override;
+
+   private:
     static Return<RequestStatus> ErrorFilter(int32_t error);
 
     // Internal machinery to set the active group
     int __setActiveGroup(uint32_t gid);
 
-    //Auth / Enroll thread functions
-    bool startWorker();
-
-    worker_state getNextState();
-    bool isEventAvailable(int timeout = /* Do not block at all: */ 0);
-    bool setState(worker_state);
-    bool setState(worker_state, const std::unique_lock<std::mutex> &);
-    bool waitForState(worker_state);
-    bool pauseThread();
-    bool resumeNavigation();
-    static void * worker_thread(void *args);
-    void workerThread();
-    void processNavigation();
-    void processEnroll();
-    void processAuth();
-
+    ::SynchronizedWorker::Thread mWt;
     std::mutex mClientCallbackMutex;
-    std::mutex mEventfdMutex;
-    std::condition_variable mThreadStateChanged;
     sp<IBiometricsFingerprintClientCallback> mClientCallback;
-    sony_fingerprint_device_t *mDevice;
+    sony_fingerprint_device_t* mDevice;
     uint64_t auth_challenge;
 };
 

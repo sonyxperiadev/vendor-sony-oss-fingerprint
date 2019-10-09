@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2018 Shane Francis / Jens Andersen
+ * Copyright (C) 2019 Marijn Suijten
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +17,7 @@
 
 #define LOG_TAG "AOSP FPC HAL (Binder)"
 #define LOG_VERBOSE "AOSP FPC HAL (Binder)"
+// #define LOG_NDEBUG 0
 
 #include "BiometricsFingerprint.h"
 
@@ -34,16 +36,20 @@ namespace fpc {
 using ::android::hardware::biometrics::fingerprint::V2_1::FingerprintAcquiredInfo;
 using ::android::hardware::biometrics::fingerprint::V2_1::FingerprintError;
 using ::android::hardware::biometrics::fingerprint::V2_1::RequestStatus;
+using namespace ::SynchronizedWorker;
 
-BiometricsFingerprint::BiometricsFingerprint() : mClientCallback(nullptr), mDevice(nullptr) {
-    mDevice = openHal();
-    if (!mDevice) {
-        ALOGE("Can't open HAL module");
-        return;
-    }
+BiometricsFingerprint::BiometricsFingerprint() : mWt(this), mClientCallback(nullptr), mDevice(nullptr) {
+    fpc_imp_data_t *fpc_data = NULL;
 
-    if (!startWorker())
-        return;
+    mDevice = (sony_fingerprint_device_t*) malloc(sizeof(sony_fingerprint_device_t));
+    LOG_ALWAYS_FATAL_IF(!mDevice, "Failed to allocate sony_fingerprint_device_t");
+    memset(mDevice, 0, sizeof(sony_fingerprint_device_t));
+
+    if (fpc_init(&fpc_data, mWt.getEventFd()) < 0)
+        LOG_ALWAYS_FATAL("Could not init FPC device");
+    mDevice->fpc = fpc_data;
+
+    mWt.Start();
 }
 
 BiometricsFingerprint::~BiometricsFingerprint() {
@@ -98,7 +104,7 @@ Return<RequestStatus> BiometricsFingerprint::enroll(const hidl_array<uint8_t, 69
     const hw_auth_token_t* authToken =
         reinterpret_cast<const hw_auth_token_t*>(hat.data());
 
-    if (!pauseThread())
+    if (!mWt.Pause())
         return RequestStatus::SYS_EBUSY;
 
     ALOGI("%s : hat->challenge %lu",__func__,(unsigned long) authToken->challenge);
@@ -110,7 +116,7 @@ Return<RequestStatus> BiometricsFingerprint::enroll(const hidl_array<uint8_t, 69
 
     fpc_verify_auth_challenge(mDevice->fpc, (void*) authToken, sizeof(hw_auth_token_t));
 
-    bool success = waitForState(STATE_ENROLL);
+    bool success = mWt.waitForState(AsyncState::Enroll);
     return success ? RequestStatus::SYS_OK : RequestStatus::SYS_EAGAIN;
 }
 
@@ -129,12 +135,12 @@ Return<uint64_t> BiometricsFingerprint::getAuthenticatorId() {
 Return<RequestStatus> BiometricsFingerprint::cancel() {
     ALOGI("%s",__func__);
 
-    if (resumeNavigation()) {
-        ALOGI("%s : Successfully moved to idle state", __func__);
+    if (mWt.Resume()) {
+        ALOGI("%s : Successfully moved to pause state", __func__);
         return RequestStatus::SYS_OK;
     }
 
-    ALOGE("%s : Failed to move to idle state", __func__);
+    ALOGE("%s : Failed to move to pause state", __func__);
     return RequestStatus::SYS_UNKNOWN;
 }
 
@@ -148,7 +154,7 @@ Return<RequestStatus> BiometricsFingerprint::enumerate() {
 
     ALOGV(__func__);
 
-    if (!pauseThread())
+    if (!mWt.Pause())
         return RequestStatus::SYS_EBUSY;
 
     fpc_fingerprint_index_t print_indexs;
@@ -170,7 +176,7 @@ Return<RequestStatus> BiometricsFingerprint::enumerate() {
             mClientCallback->onEnumerate(devId, print_indexs.prints[i], mDevice->gid, remaining_templates);
         }
 
-    resumeNavigation();
+    mWt.Resume();
 
     return ErrorFilter(0);
 }
@@ -184,7 +190,7 @@ Return<RequestStatus> BiometricsFingerprint::remove(uint32_t gid, uint32_t fid) 
         return ErrorFilter(-1);
     }
 
-    if (!pauseThread())
+    if (!mWt.Pause())
         return RequestStatus::SYS_EBUSY;
 
     Return<RequestStatus> ret = RequestStatus::SYS_OK;
@@ -202,7 +208,7 @@ Return<RequestStatus> BiometricsFingerprint::remove(uint32_t gid, uint32_t fid) 
         ret = ErrorFilter(-1);
     }
 
-    resumeNavigation();
+    mWt.Resume();
 
     return ret;
 }
@@ -262,12 +268,12 @@ Return<RequestStatus> BiometricsFingerprint::setActiveGroup(uint32_t gid,
 
     ALOGI("%s : storage path set to : %s", __func__, mDevice->db_path);
 
-    if (!pauseThread())
+    if (!mWt.Pause())
         return RequestStatus::SYS_EBUSY;
 
     result = __setActiveGroup(gid);
 
-    resumeNavigation();
+    mWt.Resume();
 
     return ErrorFilter(result);
 }
@@ -279,7 +285,7 @@ Return<RequestStatus> BiometricsFingerprint::authenticate(uint64_t operation_id,
 
     ALOGI("%s: operation_id=%ju", __func__, operation_id);
 
-    if (!pauseThread())
+    if (!mWt.Pause())
         return RequestStatus::SYS_EBUSY;
 
     r = fpc_set_auth_challenge(mDevice->fpc, operation_id);
@@ -289,224 +295,29 @@ Return<RequestStatus> BiometricsFingerprint::authenticate(uint64_t operation_id,
         return RequestStatus::SYS_EAGAIN;
     }
 
-    bool success = waitForState(STATE_AUTH);
+    bool success = mWt.waitForState(AsyncState::Authenticate);
     return success ? RequestStatus::SYS_OK : RequestStatus::SYS_EAGAIN;
 }
 
-sony_fingerprint_device_t *BiometricsFingerprint::openHal() {
-    ALOGI("%s",__func__);
-
-    fpc_imp_data_t *fpc_data = NULL;
-
-    sony_fingerprint_device_t *sdev = (sony_fingerprint_device_t*) malloc(sizeof(sony_fingerprint_device_t));
-    memset(sdev, 0, sizeof(sony_fingerprint_device_t));
-
-    sdev->worker.event_fd = eventfd(0, EFD_NONBLOCK);
-
-    if (fpc_init(&fpc_data, sdev->worker.event_fd) < 0) {
-        ALOGE("Could not init FPC device");
-        return nullptr;
-    }
-    sdev->fpc = fpc_data;
-
-    return sdev;
-}
-
-bool BiometricsFingerprint::startWorker() {
-    if(pthread_create(&mDevice->worker.thread, NULL, worker_thread, (void *)this)) {
-        ALOGE("%s : Error creating worker thread\n", __func__);
-        mDevice->worker.thread_running  = false;
-        return false;
-    }
-
-    mDevice->worker.running_state = STATE_INVALID;
-    mDevice->worker.desired_state = STATE_INVALID;
-
-    return true;
-}
-
-worker_state BiometricsFingerprint::getNextState() {
-    std::unique_lock<std::mutex> lock(mEventfdMutex);
-    eventfd_t stateAvailable;
-    worker_state state = STATE_IDLE;
-
-    int rc = eventfd_read(mDevice->worker.event_fd, &stateAvailable);
-    // When data is read, stateAvailable will be non-zero.
-    if (!rc) {
-        LOG_ALWAYS_FATAL_IF(mDevice->worker.desired_state == STATE_INVALID,
-                            "Requested state is invalid! %d", mDevice->worker.desired_state);
-        state = mDevice->worker.desired_state;
-    }
-
-    ALOGV("%s : %d", __func__, state);
-
-    mDevice->worker.running_state = state;
-    mThreadStateChanged.notify_all();
-
-    return state;
-}
-
-bool BiometricsFingerprint::isEventAvailable(int timeout) {
-    struct pollfd pfd = {
-        .fd = mDevice->worker.event_fd,
-        .events = POLLIN,
-    };
-
-    int cnt = poll(&pfd, 1, timeout);
-
-    if (cnt < 0) {
-        ALOGE("%s : Failed polling eventfd: %d", __func__, cnt);
-        return false;
-    }
-
-    bool available = cnt > 0;
-    ALOGV("%s : available=%d", __func__, available);
-
-    return available;
-}
-
-bool BiometricsFingerprint::setState(worker_state state) {
-    std::unique_lock<std::mutex> lock(mEventfdMutex);
-    return setState(state, lock);
-}
-
-/**
- * Write a different eventfd state, assuming the caller locked the mutex.
- *
- * The unique_lock is passed in for the caller to prove that it owns mEventfdMutex.
- */
-bool BiometricsFingerprint::setState(worker_state state, const std::unique_lock<std::mutex> &lock) {
-    LOG_ALWAYS_FATAL_IF(lock.mutex() != &mEventfdMutex || !lock.owns_lock(),
-                        "Caller didn't lock mEventfdMutex!");
-
-    ALOGD("%s : Setting state to %d", __func__, state);
-    mDevice->worker.desired_state = state;
-
-    int rc = eventfd_write(mDevice->worker.event_fd, 1);
-    if (rc)
-        ALOGE("%s : Failed to write state to eventfd: %d", __func__, rc);
-    return !rc;
-}
-
-/**
- * Request the thread to switch to \p state, and wait for the transition
- * to happen.
- */
-bool BiometricsFingerprint::waitForState(worker_state state) {
-    constexpr auto wait_timeout = std::chrono::seconds(3);
-
-    std::unique_lock<std::mutex> lock(mEventfdMutex);
-
-    if (!setState(state, lock)) {
-        ALOGE("Failed to transition from %d to %d",
-            mDevice->worker.running_state, state);
-        return false;
-    }
-
-    // Wait for the thread to enter the new state:
-    bool success = mThreadStateChanged.wait_for(lock, wait_timeout, [&]() {
-        return mDevice->worker.running_state == state;
-    });
-
-    // Always crash, instead of blocking forever:
-    LOG_ALWAYS_FATAL_IF(!success,
-        "Timed out waiting for %d for %llds. Are you writing race conditions??",
-        state, wait_timeout.count());
-
-    ALOGD("%s: Successfully switched to %d", __func__, state);
-
-    return true;
-}
-
-/**
- * Free the thread from doing anything, waiting for the next state
- * to be written.
- */
-bool BiometricsFingerprint::pauseThread() {
-    ALOGD("%s", __func__);
-    auto ret = waitForState(STATE_PAUSE);
-    ALOGE_IF(!ret, "%s failed", __func__);
-    return ret;
-}
-
-/**
- * Put the thread back in idle mode, eventually resuming navigation again.
- */
-bool BiometricsFingerprint::resumeNavigation() {
-    ALOGD("%s", __func__);
-    // Not waiting for the next state, since it may happen at any moment
-    auto ret = setState(STATE_IDLE);
-    ALOGE_IF(!ret, "%s failed", __func__);
-    return ret;
-}
-
-void * BiometricsFingerprint::worker_thread(void *args) {
-    BiometricsFingerprint* thisPtr = static_cast<BiometricsFingerprint*>(args);
-
-    if (!thisPtr) {
-        ALOGE("%s : No BiometricsFingerprint instance set!", __func__);
-        return NULL;
-    }
-
-    thisPtr->workerThread();
-    return NULL;
-}
-
-void BiometricsFingerprint::workerThread() {
-    bool navi_supported = fpc_navi_supported(mDevice->fpc);
-    bool thread_running = true;
-    bool event_available;
-
-    ALOGI("%s : START", __func__);
-
-    while (thread_running) {
-        // Never poll on an event. If nothing is going on, switch
-        // to navigation/gesture capture state.
-        worker_state nextState = getNextState();
-
-        switch (nextState) {
-            case STATE_IDLE:
-                ALOGI("%s : IDLE", __func__);
-                // Wait for a new state for at most 200ms before entering navigation mode.
-                // This gives the service some time to execute multiple commands on the HAL
-                // sequentially before needlessly going into navigation mode and exit it
-                // almost immediately after.
-                event_available = isEventAvailable(navi_supported ? 200 : -1);
-                if (navi_supported && !event_available)
-                    // Only enter navigation state when no event triggered
-                    processNavigation();
-                else if (navi_supported)
-                    ALOGD("IDLE exit: Handle event instead of navigation");
-                break;
-            case STATE_PAUSE:
-                ALOGI("%s : POLL", __func__);
-                isEventAvailable(-1);
-                // Poll always returns if the data in the eventfd is non-zero.
-                break;
-            case STATE_ENROLL:
-                ALOGI("%s : ENROLL", __func__);
-                processEnroll();
-                break;
-            case STATE_AUTH:
-                ALOGI("%s : AUTH", __func__);
-                processAuth();
-                break;
-            case STATE_EXIT:
-                ALOGI("%s : EXIT", __func__);
-                thread_running = false;
-                break;
-            default:
-                ALOGW("%s : UNKNOWN worker state %d", __func__, nextState);
-                break;
-        }
-    }
-
-    ALOGI("%s -", __func__);
-}
-
-void BiometricsFingerprint::processNavigation() {
+void BiometricsFingerprint::IdleAsync() {
     ALOGD(__func__);
     int rc;
+
+    if (!fpc_navi_supported(mDevice->fpc)) {
+        WorkHandler::IdleAsync();
+        return;
+    }
+
+    // Wait for a new state for at most 500ms before entering navigation mode.
+    // This gives the service some time to execute multiple commands on the HAL
+    // sequentially before needlessly going into navigation mode and exit it
+    // almost immediately after.
+    else if(mWt.isEventAvailable(500)) {
+        ALOGD("%s: EXIT: Handle event instead of navigation", __func__);
+        return;
+    }
+
+    ALOGD("%s: Start gesture polling", __func__);
 
     if (fpc_set_power(&mDevice->fpc->event, FPC_PWRON) < 0) {
         ALOGE("Error starting device");
@@ -528,7 +339,7 @@ void BiometricsFingerprint::processNavigation() {
         ALOGE("Error stopping device");
 }
 
-void BiometricsFingerprint::processEnroll() {
+void BiometricsFingerprint::EnrollAsync() {
     // WARNING: Not implemented on any platform
     int32_t print_count = 0;
     // ALOGD("%s : print count is : %u", __func__, print_count);
@@ -559,7 +370,7 @@ void BiometricsFingerprint::processEnroll() {
         ALOGD("%s : Got Input status=%d", __func__, status);
 
 
-        if (isEventAvailable()) {
+        if (mWt.isEventAvailable()) {
             mClientCallback->onError(devId, FingerprintError::ERROR_CANCELED, 0);
             break;
         }
@@ -614,7 +425,7 @@ void BiometricsFingerprint::processEnroll() {
 }
 
 
-void BiometricsFingerprint::processAuth() {
+void BiometricsFingerprint::AuthenticateAsync() {
     int result;
     int status = 1;
 
@@ -637,7 +448,7 @@ void BiometricsFingerprint::processAuth() {
     while((status = fpc_capture_image(mDevice->fpc)) >= 0 ) {
         ALOGV("%s : Got Input with status %d", __func__, status);
 
-        if (isEventAvailable()) {
+        if (mWt.isEventAvailable()) {
             mClientCallback->onError(devId, FingerprintError::ERROR_CANCELED, 0);
             break;
         }
@@ -716,7 +527,7 @@ void BiometricsFingerprint::processAuth() {
                  */
                 result = fpc_close(&mDevice->fpc);
                 LOG_ALWAYS_FATAL_IF(result < 0, "REINITIALIZE: Failed to close fpc: %d", result);
-                result = fpc_init(&mDevice->fpc, mDevice->worker.event_fd);
+                result = fpc_init(&mDevice->fpc, mWt.getEventFd());
                 LOG_ALWAYS_FATAL_IF(result < 0, "REINITIALIZE: Failed to init fpc: %d", result);
 #ifdef USE_FPC_YOSHINO
                 int grp_err = __setActiveGroup(mDevice, gid);

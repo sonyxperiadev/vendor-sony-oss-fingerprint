@@ -42,6 +42,7 @@ class WorkerThread {
 
    public:
     WorkerThread(WorkHandler *handler, int dev_fd);
+    ~WorkerThread();
 
     void Start();
     void Stop();

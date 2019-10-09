@@ -7,18 +7,38 @@
 #include <string.h>
 #include <sys/epoll.h>
 #include <sys/poll.h>
+#include <unistd.h>
 #include <FormatException.hpp>
 
 #define LOG_TAG "FPC"
 #define LOG_NDEBUG 0
 #include <log/log.h>
 
+static const char *AsyncStateToChar(const AsyncState state) {
+#define ENUM_STR(enum)     \
+    case AsyncState::enum: \
+        return #enum;
+
+    switch (state) {
+        ENUM_STR(Idle)
+        ENUM_STR(Cancel)
+        ENUM_STR(Authenticate)
+        ENUM_STR(Enroll)
+        ENUM_STR(Stop)
+    }
+
+#undef ENUM_STR
+
+    ALOGE("%s: Unknown enum state %lu", __func__, state);
+    return "UNKNOWN (SEE PREVIOUS ERROR)";
+}
+
 WorkerThread::WorkerThread(WorkHandler *handler, int dev_fd) : dev_fd(dev_fd), mHandler(handler) {
     int rc = 0;
 
     LOG_ALWAYS_FATAL_IF(!mHandler, "WorkHandler is null!");
 
-    event_fd = eventfd((eventfd_t)AsyncState::Idle, EFD_NONBLOCK);
+    event_fd = eventfd((eventfd_t)AsyncState::Idle, EFD_NONBLOCK | EFD_CLOEXEC);
     LOG_ALWAYS_FATAL_IF(event_fd < 0, "Failed to create eventfd: %s", strerror(errno));
     epoll_fd = epoll_create1(0);
     LOG_ALWAYS_FATAL_IF(epoll_fd < 0, "Failed to create epoll: %s", strerror(errno));
@@ -38,6 +58,13 @@ WorkerThread::WorkerThread(WorkHandler *handler, int dev_fd) : dev_fd(dev_fd), m
     LOG_ALWAYS_FATAL_IF(rc, "Failed to add fingerprint device %d to epoll: %s", dev_fd, strerror(errno));
 }
 
+WorkerThread::~WorkerThread() {
+    Stop();
+
+    close(epoll_fd);
+    close(event_fd);
+}
+
 void *WorkerThread::ThreadStart(void *arg) {
     auto &self = *static_cast<WorkerThread *>(arg);
     self.RunThread();
@@ -48,6 +75,7 @@ void WorkerThread::RunThread() {
     ALOGD("Async thread up");
     for (;;) {
         auto nextState = ReadState();
+        ALOGD("%s: Switching to state %s", __func__, AsyncStateToChar(nextState));
         currentState = nextState;
         switch (nextState) {
             case AsyncState::Idle:
@@ -67,7 +95,7 @@ void WorkerThread::RunThread() {
                 ALOGI("Stopping WorkerThread");
                 return;
             default:
-                ALOGW("Unexpected AsyncState %lu", nextState);
+                ALOGW("Unexpected AsyncState %s", AsyncStateToChar(nextState));
                 break;
         }
         currentState = AsyncState::Idle;
@@ -79,9 +107,12 @@ void WorkerThread::Start() {
 }
 
 void WorkerThread::Stop() {
-    ALOGI("Requesting thread to stop");
-    MoveToState(AsyncState::Stop);
-    thread.join();
+    if (thread.joinable()) {
+        ALOGW("Requesting thread to stop");
+        auto success = MoveToState(AsyncState::Stop);
+        LOG_ALWAYS_FATAL_IF(!success, "Failed to stop thread!");
+        thread.join();
+    }
 }
 
 AsyncState WorkerThread::ReadState() const {
@@ -117,7 +148,7 @@ bool WorkerThread::IsEventAvailable() const {
 }
 
 bool WorkerThread::MoveToState(AsyncState nextState) {
-    ALOGD("Attempting to move to state %lu", nextState);
+    ALOGD("Attempting to move to state %s", AsyncStateToChar(nextState));
     // TODO: This is racy (eg. does not look at in-flight state),
     // but it does not matter because async operations are not supposed to be
     // invoked concurrently (how can a device run any combination of authenticate or
@@ -127,7 +158,8 @@ bool WorkerThread::MoveToState(AsyncState nextState) {
     // such a case, and only starts the next operation upon receiving FingerprintError::ERROR_CANCELED.
 
     if (nextState != AsyncState::Cancel && currentState != AsyncState::Idle) {
-        ALOGW("Thread already in state %lu, refusing to move to %lu", currentState, nextState);
+        ALOGW("Thread already in state %s, refusing to move to %s",
+              AsyncStateToChar(currentState), AsyncStateToChar(nextState));
         return false;
     }
 
