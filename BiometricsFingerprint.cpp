@@ -527,6 +527,7 @@ void BiometricsFingerprint::AuthenticateAsync() {
                  */
                 result = fpc_close(&mDevice->fpc);
                 LOG_ALWAYS_FATAL_IF(result < 0, "REINITIALIZE: Failed to close fpc: %d", result);
+                sleep(1);
                 result = fpc_init(&mDevice->fpc, mWt.getEventFd());
                 LOG_ALWAYS_FATAL_IF(result < 0, "REINITIALIZE: Failed to init fpc: %d", result);
 #ifdef USE_FPC_YOSHINO
