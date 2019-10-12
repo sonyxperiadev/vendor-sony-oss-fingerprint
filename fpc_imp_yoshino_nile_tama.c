@@ -70,7 +70,7 @@ static const char *error_strings[] = {
     "FPC_ERROR_IO",
     "FPC_ERROR_NOSPACE",
     "FPC_ERROR_COMM",
-    "FPC_ERROR_ALLOC"
+    "FPC_ERROR_ALLOC",
     "FPC_ERROR_TIMEDOUT",
     "FPC_ERROR_INPUT",
 };
