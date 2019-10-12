@@ -6,7 +6,9 @@
 
 namespace egistec::ganges {
 
-BiometricsFingerprint::BiometricsFingerprint(EgisFpDevice &&dev) : mDev(std::move(dev)), mWt(this, mDev.GetFd()) {
+using namespace ::SynchronizedWorker;
+
+BiometricsFingerprint::BiometricsFingerprint(EgisFpDevice &&dev) : mDev(std::move(dev)), mWt(this), mMux(mDev.GetFd(), mWt.getEventFd()) {
     QSEEKeymasterTrustlet keymaster;
     int rc = 0;
 
@@ -117,7 +119,7 @@ Return<RequestStatus> BiometricsFingerprint::enroll(const hidl_array<uint8_t, 69
 
     mEnrollTimeout = timeoutSec;
 
-    if (mWt.MoveToState(AsyncState::Enroll))
+    if (mWt.moveToState(AsyncState::Enroll))
         return RequestStatus::SYS_OK;
 
     return RequestStatus::SYS_EFAULT;
@@ -142,7 +144,7 @@ Return<uint64_t> BiometricsFingerprint::getAuthenticatorId() {
 Return<RequestStatus> BiometricsFingerprint::cancel() {
     ALOGI("Cancel requested");
 
-    if (mWt.MoveToState(AsyncState::Cancel))
+    if (mWt.moveToState(AsyncState::Idle))
         return RequestStatus::SYS_OK;
 
     return RequestStatus::SYS_EFAULT;
@@ -236,10 +238,14 @@ Return<RequestStatus> BiometricsFingerprint::authenticate(uint64_t operationId, 
 
     mOperationId = operationId;
 
-    if (mWt.MoveToState(AsyncState::Authenticate))
+    if (mWt.moveToState(AsyncState::Authenticate))
         return RequestStatus::SYS_OK;
 
     return RequestStatus::SYS_EFAULT;
+}
+
+Thread &BiometricsFingerprint::getWorker() {
+    return mWt;
 }
 
 void BiometricsFingerprint::AuthenticateAsync() {
@@ -269,7 +275,7 @@ void BiometricsFingerprint::AuthenticateAsync() {
     }
 
     while (!done && !rc && !canceled && !timeout) {
-        if (mWt.IsEventAvailable()) {
+        if (mWt.isEventAvailable()) {
             canceled = true;
             break;
         }
@@ -281,7 +287,7 @@ void BiometricsFingerprint::AuthenticateAsync() {
                 if (rc)
                     break;
 
-                wakeup_reason = mWt.WaitForEvent();
+                wakeup_reason = mMux.waitForEvent();
                 if (wakeup_reason == WakeupReason::Finger) {
                     state = GetImage;
                 } else if (wakeup_reason == WakeupReason::Timeout) {
@@ -373,7 +379,7 @@ void BiometricsFingerprint::AuthenticateAsync() {
                     rc = mTrustlet.SetSpiState(0);
                     state = WaitFingerDown;
                 } else {
-                    wakeup_reason = mWt.WaitForEvent();
+                    wakeup_reason = mMux.waitForEvent();
                     if (wakeup_reason == WakeupReason::Finger) {
                         rc = mTrustlet.SetSpiState(0);
                         state = WaitFingerDown;
@@ -432,7 +438,7 @@ void BiometricsFingerprint::AuthenticateAsync() {
     }
 }
 
-void BiometricsFingerprint::HandleGesturesAsync() {
+void BiometricsFingerprint::IdleAsync() {
     DeviceEnableGuard<EgisFpDevice> guard{mDev};
     int rc = 0;
     int which;
@@ -475,7 +481,7 @@ void BiometricsFingerprint::HandleGesturesAsync() {
                 break;
         }
 
-        WakeupReason wakeup_reason = mWt.WaitForEvent();
+        WakeupReason wakeup_reason = mMux.waitForEvent();
         if (wakeup_reason == WakeupReason::Finger) {
             ALOGV("Gesture event!");
         } else if (wakeup_reason == WakeupReason::Event) {
@@ -521,7 +527,7 @@ void BiometricsFingerprint::EnrollAsync() {
     }
 
     while (percentage_done < 100 && !canceled && !timeout && !rc) {
-        if (mWt.IsEventAvailable()) {
+        if (mWt.isEventAvailable()) {
             canceled = true;
             break;
         }
@@ -534,7 +540,7 @@ void BiometricsFingerprint::EnrollAsync() {
                 if (rc)
                     break;
 
-                wakeup_reason = mWt.WaitForEvent(mEnrollTimeout);
+                wakeup_reason = mMux.waitForEvent(mEnrollTimeout);
                 if (wakeup_reason == WakeupReason::Finger) {
                     finger_state = 1;
                     state = GetImage;
@@ -651,7 +657,7 @@ void BiometricsFingerprint::EnrollAsync() {
                 else {
                     // NOTE: Based on authentication loop!
 
-                    wakeup_reason = mWt.WaitForEvent(mEnrollTimeout);
+                    wakeup_reason = mMux.waitForEvent(mEnrollTimeout);
                     if (wakeup_reason == WakeupReason::Timeout)
                         timeout = true;
                 }
@@ -678,12 +684,6 @@ void BiometricsFingerprint::EnrollAsync() {
         NotifyEnrollResult(mNewPrintId, 0);
         ALOGE_IF(rc, "%s: Failed to save print, rc = %d", __func__, rc);
     }
-}
-
-void BiometricsFingerprint::OnEnterIdle() {
-    // Set the hardware back to idle state:
-    int rc = mTrustlet.SetWorkMode(WorkMode::Sleep);
-    LOG_ALWAYS_FATAL_IF(rc, "SetWorkMode(WorkMode::Sleep) failed with rc=%d", rc);
 }
 
 void BiometricsFingerprint::NotifyAcquired(FingerprintAcquiredInfo acquiredInfo) {
