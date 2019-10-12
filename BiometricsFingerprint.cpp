@@ -472,30 +472,29 @@ void BiometricsFingerprint::AuthenticateAsync() {
             uint32_t fid = 0;
 
             if (verify_state >= 0) {
-                if(print_id > 0)
-                {
+                result = fpc_update_template(mDevice->fpc);
+                if (result < 0) {
+                    ALOGE("Error updating template: %d", result);
+                } else if (result) {
+                    ALOGI("Storing db");
+                    result = fpc_store_user_db(mDevice->fpc, 0, mDevice->db_path);
+                    if (result) ALOGE("Error storing database: %d", result);
+                }
+
+                if (print_id > 0) {
                     hw_auth_token_t hat;
                     ALOGI("%s : Got print id : %u", __func__, print_id);
-
-                    result = fpc_update_template(mDevice->fpc);
-                    if(result)
-                    {
-                        ALOGE("Error updating template: %d", result);
-                    } else {
-                        result = fpc_store_user_db(mDevice->fpc, 0, mDevice->db_path);
-                        if (result) ALOGE("Error storing database: %d", result);
-                    }
 
                     if (auth_challenge) {
                         fpc_get_hw_auth_obj(mDevice->fpc, &hat, sizeof(hw_auth_token_t));
 
                         ALOGW_IF(auth_challenge != hat.challenge,
-                                "Local auth challenge %ju does not match hat challenge %ju",
-                                auth_challenge, hat.challenge);
+                                 "Local auth challenge %ju does not match hat challenge %ju",
+                                 auth_challenge, hat.challenge);
 
                         ALOGI("%s : hat->challenge %ju", __func__, hat.challenge);
                         ALOGI("%s : hat->user_id %ju", __func__, hat.user_id);
-                        ALOGI("%s : hat->authenticator_id %ju",  __func__, hat.authenticator_id);
+                        ALOGI("%s : hat->authenticator_id %ju", __func__, hat.authenticator_id);
                         ALOGI("%s : hat->authenticator_type %u", __func__, ntohl(hat.authenticator_type));
                         ALOGI("%s : hat->timestamp %lu", __func__, bswap_64(hat.timestamp));
                         ALOGI("%s : hat size %zu", __func__, sizeof(hw_auth_token_t));
@@ -508,7 +507,7 @@ void BiometricsFingerprint::AuthenticateAsync() {
 
                     fid = print_id;
 
-                    const uint8_t* hat2 = reinterpret_cast<const uint8_t *>(&hat);
+                    const uint8_t* hat2 = reinterpret_cast<const uint8_t*>(&hat);
                     const hidl_vec<uint8_t> token(std::vector<uint8_t>(hat2, hat2 + sizeof(hat)));
 
                     mClientCallback->onAuthenticated(devId, fid, gid, token);
@@ -517,6 +516,7 @@ void BiometricsFingerprint::AuthenticateAsync() {
                     ALOGI("%s : Got print id : %u", __func__, print_id);
                     mClientCallback->onAuthenticated(devId, fid, gid, hidl_vec<uint8_t>());
                 }
+
             } else if (verify_state == -EAGAIN) {
                 ALOGI("%s : retrying due to receiving -EAGAIN", __func__);
                 mClientCallback->onAuthenticated(devId, fid, gid, hidl_vec<uint8_t>());

@@ -493,21 +493,22 @@ err_t fpc_auth_start(fpc_imp_data_t __unused  *data)
 
 err_t fpc_auth_step(fpc_imp_data_t *data, uint32_t *print_id)
 {
-    fpc_data_t *ldata = (fpc_data_t*)data;
+    fpc_data_t *ldata = (fpc_data_t *)data;
     fpc_send_identify_t identify_cmd = {
         .commandgroup = FPC_GROUP_NORMAL,
         .command = FPC_IDENTIFY,
     };
 
     int result = send_custom_cmd(ldata, &identify_cmd, sizeof(identify_cmd));
-    if(result)
-    {
-        ALOGE("Error identifying: %d || %d\n", result, identify_cmd.status);
-        return -1;
+    if (result) {
+        ALOGE("Failed identifying, result=%d", result);
+        return result;
+    } else if (identify_cmd.status < 0) {
+        ALOGE("Failed identifying, status=%d", identify_cmd.status);
+        return identify_cmd.status;
     }
 
-
-    ALOGD("Print identified as %d\n", identify_cmd.id);
+    ALOGD("Print identified as %u\n", identify_cmd.id);
 
     *print_id = identify_cmd.id;
     return identify_cmd.status;
@@ -522,7 +523,7 @@ err_t fpc_auth_end(fpc_imp_data_t __unused *data)
 err_t fpc_update_template(fpc_imp_data_t __unused *data)
 {
     // TODO: Implement for loire/tone
-    return 0;
+    return 1;
 }
 
 err_t fpc_get_print_index(fpc_imp_data_t *data, fpc_fingerprint_index_t *idx_data)

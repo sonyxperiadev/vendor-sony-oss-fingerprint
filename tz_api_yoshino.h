@@ -133,6 +133,13 @@ typedef struct {
     uint32_t group_id;
     uint32_t cmd_id;
     int32_t status;
+    uint32_t has_changed;
+} fpc_update_template_t;
+
+typedef struct {
+    uint32_t group_id;
+    uint32_t cmd_id;
+    int32_t status;
     uint32_t length;
     char data[];
 } fpc_send_keydata_t;
