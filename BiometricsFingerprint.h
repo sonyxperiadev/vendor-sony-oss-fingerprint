@@ -21,14 +21,9 @@
 #include <hardware/fingerprint.h>
 #include <hidl/MQDescriptor.h>
 #include <hidl/Status.h>
-#include <pthread.h>
 #include <android/hardware/biometrics/fingerprint/2.1/IBiometricsFingerprint.h>
 #include <mutex>
-#if PLATFORM_SDK_VERSION >= 28
-#include <bits/epoll_event.h>
-#endif
-#include <sys/epoll.h>
-#include <sys/eventfd.h>
+#include "SynchronizedWorkerThread.h"
 
 extern "C" {
     #include "fpc_imp.h"
@@ -46,40 +41,17 @@ using ::android::hardware::hidl_vec;
 using ::android::hardware::hidl_string;
 using ::android::sp;
 
-enum worker_state {
-    STATE_IDLE = 0,
-    STATE_ENROLL,
-    STATE_AUTH,
-    STATE_EXIT,
-    STATE_CANCEL,
-};
-
-
 typedef struct {
-    pthread_t thread;
-    bool thread_running;
-    worker_state running_state;
-    int epoll_fd;
-    int event_fd;
-} fpc_thread_t;
-
-typedef struct {
-    fingerprint_device_t device;  // "inheritance"
-    fpc_thread_t worker;
     fpc_imp_data_t *fpc;
     uint32_t gid;
     char db_path[255];
-    pthread_mutex_t lock;
     uint64_t challenge;
 } sony_fingerprint_device_t;
 
-struct BiometricsFingerprint : public IBiometricsFingerprint {
-public:
+struct BiometricsFingerprint : public IBiometricsFingerprint, public ::SynchronizedWorker::WorkHandler {
+   public:
     BiometricsFingerprint();
     ~BiometricsFingerprint();
-
-    // Method to wrap legacy HAL with BiometricsFingerprint class
-    static IBiometricsFingerprint* getInstance();
 
     // Methods from ::android::hardware::biometrics::fingerprint::V2_1::IBiometricsFingerprint follow.
     Return<uint64_t> setNotify(const sp<IBiometricsFingerprintClientCallback>& clientCallback) override;
@@ -93,25 +65,25 @@ public:
     Return<RequestStatus> setActiveGroup(uint32_t gid, const hidl_string& storePath) override;
     Return<RequestStatus> authenticate(uint64_t operationId, uint32_t gid) override;
 
-private:
-    static sony_fingerprint_device_t* openHal();
+    // Methods from ::SynchronizedWorker::WorkHandler
+    inline ::SynchronizedWorker::Thread& getWorker() override {
+        return mWt;
+    }
+    void AuthenticateAsync() override;
+    void EnrollAsync() override;
+    void IdleAsync() override;
+
+   private:
     static Return<RequestStatus> ErrorFilter(int32_t error);
-    static BiometricsFingerprint* sInstance;
 
     // Internal machinery to set the active group
-    static int __setActiveGroup(sony_fingerprint_device_t *sdev, uint32_t gid);
+    int __setActiveGroup(uint32_t gid);
 
-    //Auth / Enroll thread functions
-    static void * worker_thread(void *args);
-    static enum worker_state getNextState(sony_fingerprint_device_t* sdev);
-    static bool isCanceled(sony_fingerprint_device_t *sdev);
-    static bool setState(sony_fingerprint_device_t* sdev, enum worker_state state);
-    void process_enroll(sony_fingerprint_device_t *sdev);
-    void process_auth(sony_fingerprint_device_t *sdev);
-
+    ::SynchronizedWorker::Thread mWt;
     std::mutex mClientCallbackMutex;
     sp<IBiometricsFingerprintClientCallback> mClientCallback;
-    sony_fingerprint_device_t *mDevice;
+    sony_fingerprint_device_t* mDevice;
+    uint64_t auth_challenge;
 };
 
 }  // namespace fpc

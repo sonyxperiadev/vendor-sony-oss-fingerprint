@@ -38,6 +38,7 @@ err_t fpc_event_destroy(fpc_event_t *);
 err_t fpc_set_power(const fpc_event_t *, int poweron);
 err_t fpc_get_power(const fpc_event_t *);
 err_t fpc_poll_event(const fpc_event_t *);
+err_t is_event_available(const fpc_event_t *event);
 /**
  * Extend wakelock timeout.
  *

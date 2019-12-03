@@ -17,7 +17,7 @@
 #ifndef __TZAPI_H_
 #define __TZAPI_H_
 
-#include <stdint.h>
+#include "tz_api_yoshino_nile_tama.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,6 +41,7 @@ enum fingerprint_group_t {
     FPC_GROUP_FPCDATA = 0x3,
     FPC_GROUP_DEBUG = 0x6, // I think?
     FPC_GROUP_QC = 0x07,
+    FPC_GROUP_NAVIGATION = 0x8,
     FPC_GROUP_INFO = 0x09,
     FPC_GROUP_SENSOR = 0xA,
     FPC_GROUP_TEMPLATE = 0xB,
@@ -128,6 +129,13 @@ typedef struct {
     int32_t status;
     uint32_t gid;
 } fpc_set_gid_t;
+
+typedef struct {
+    uint32_t group_id;
+    uint32_t cmd_id;
+    int32_t status;
+    uint32_t has_changed;
+} fpc_update_template_t;
 
 typedef struct {
     uint32_t group_id;

@@ -6,7 +6,9 @@
 
 namespace egistec::ganges {
 
-BiometricsFingerprint::BiometricsFingerprint(EgisFpDevice &&dev) : mDev(std::move(dev)), mWt(this, mDev.GetFd()) {
+using namespace ::SynchronizedWorker;
+
+BiometricsFingerprint::BiometricsFingerprint(EgisFpDevice &&dev) : mDev(std::move(dev)), mWt(this), mMux(mDev.GetFd(), mWt.getEventFd()) {
     QSEEKeymasterTrustlet keymaster;
     int rc = 0;
 
@@ -117,7 +119,7 @@ Return<RequestStatus> BiometricsFingerprint::enroll(const hidl_array<uint8_t, 69
 
     mEnrollTimeout = timeoutSec;
 
-    if (mWt.MoveToState(AsyncState::Enroll))
+    if (mWt.moveToState(AsyncState::Enroll))
         return RequestStatus::SYS_OK;
 
     return RequestStatus::SYS_EFAULT;
@@ -142,7 +144,7 @@ Return<uint64_t> BiometricsFingerprint::getAuthenticatorId() {
 Return<RequestStatus> BiometricsFingerprint::cancel() {
     ALOGI("Cancel requested");
 
-    if (mWt.MoveToState(AsyncState::Cancel))
+    if (mWt.moveToState(AsyncState::Idle))
         return RequestStatus::SYS_OK;
 
     return RequestStatus::SYS_EFAULT;
@@ -236,10 +238,14 @@ Return<RequestStatus> BiometricsFingerprint::authenticate(uint64_t operationId, 
 
     mOperationId = operationId;
 
-    if (mWt.MoveToState(AsyncState::Authenticate))
+    if (mWt.moveToState(AsyncState::Authenticate))
         return RequestStatus::SYS_OK;
 
     return RequestStatus::SYS_EFAULT;
+}
+
+Thread &BiometricsFingerprint::getWorker() {
+    return mWt;
 }
 
 void BiometricsFingerprint::AuthenticateAsync() {
@@ -269,19 +275,19 @@ void BiometricsFingerprint::AuthenticateAsync() {
     }
 
     while (!done && !rc && !canceled && !timeout) {
-        if (mWt.IsCanceled()) {
+        if (mWt.isEventAvailable()) {
             canceled = true;
             break;
         }
 
         switch (state) {
             case WaitFingerDown:
-                rc = mTrustlet.SetWorkMode(1);
+                rc = mTrustlet.SetWorkMode(WorkMode::Detect);
                 ALOGE_IF(rc, "%s: Failed to set detect mode, rc = %d", __func__, rc);
                 if (rc)
                     break;
 
-                wakeup_reason = mWt.WaitForEvent();
+                wakeup_reason = mMux.waitForEvent();
                 if (wakeup_reason == WakeupReason::Finger) {
                     state = GetImage;
                 } else if (wakeup_reason == WakeupReason::Timeout) {
@@ -373,7 +379,7 @@ void BiometricsFingerprint::AuthenticateAsync() {
                     rc = mTrustlet.SetSpiState(0);
                     state = WaitFingerDown;
                 } else {
-                    wakeup_reason = mWt.WaitForEvent();
+                    wakeup_reason = mMux.waitForEvent();
                     if (wakeup_reason == WakeupReason::Finger) {
                         rc = mTrustlet.SetSpiState(0);
                         state = WaitFingerDown;
@@ -432,6 +438,62 @@ void BiometricsFingerprint::AuthenticateAsync() {
     }
 }
 
+void BiometricsFingerprint::IdleAsync() {
+    DeviceEnableGuard<EgisFpDevice> guard{mDev};
+    int rc = 0;
+    int which;
+
+    rc = mTrustlet.SetWorkMode(WorkMode::NavigationDetect);
+    LOG_ALWAYS_FATAL_IF(rc, "SetWorkMode(WorkMode::NavigationDetect) failed with rc=%d", rc);
+
+    for (;;) {
+        rc = mTrustlet.GetNavEvent(which);
+        LOG_ALWAYS_FATAL_IF(rc, "GetNavEvent failed!");
+
+        // Note that keycodes look like those defined in input-event-codes.h,
+        // but are actually mirrored in both axes.
+
+        switch (which) {
+            case -1:
+                ALOGI("%s: Nothing", __func__);
+                break;
+            case 111:
+                ALOGI("%s: Doubletap", __func__);
+                break;
+            case 106:
+                ALOGI("%s: Down", __func__);
+                uinput.Click(KEY_DOWN);
+                break;
+            case 105:
+                ALOGI("%s: Up", __func__);
+                uinput.Click(KEY_UP);
+                break;
+            case 103:
+                ALOGI("%s: Left", __func__);
+                uinput.Click(KEY_LEFT);
+                break;
+            case 108:
+                ALOGI("%s: Right", __func__);
+                uinput.Click(KEY_RIGHT);
+                break;
+            case 28:
+                ALOGI("%s: Hold", __func__);
+                break;
+        }
+
+        WakeupReason wakeup_reason = mMux.waitForEvent();
+        if (wakeup_reason == WakeupReason::Finger) {
+            ALOGV("Gesture event!");
+        } else if (wakeup_reason == WakeupReason::Event) {
+            ALOGD("%s: Breaking to handle event", __func__);
+            break;
+        }
+    }
+
+    rc = mTrustlet.SetWorkMode(WorkMode::Sleep);
+    LOG_ALWAYS_FATAL_IF(rc, "SetWorkMode(WorkMode::Sleep) failed with rc=%d", rc);
+}
+
 void BiometricsFingerprint::EnrollAsync() {
     DeviceEnableGuard<EgisFpDevice> guard{mDev};
 
@@ -465,7 +527,7 @@ void BiometricsFingerprint::EnrollAsync() {
     }
 
     while (percentage_done < 100 && !canceled && !timeout && !rc) {
-        if (mWt.IsCanceled()) {
+        if (mWt.isEventAvailable()) {
             canceled = true;
             break;
         }
@@ -473,12 +535,12 @@ void BiometricsFingerprint::EnrollAsync() {
         ALOGI("%s: State = %d", __func__, state);
         switch (state) {
             case WaitFingerDown:
-                rc = mTrustlet.SetWorkMode(1);
+                rc = mTrustlet.SetWorkMode(WorkMode::Detect);
                 ALOGE_IF(rc, "%s: Failed to set detect mode, rc = %d", __func__, rc);
                 if (rc)
                     break;
 
-                wakeup_reason = mWt.WaitForEvent(mEnrollTimeout);
+                wakeup_reason = mMux.waitForEvent(mEnrollTimeout);
                 if (wakeup_reason == WakeupReason::Finger) {
                     finger_state = 1;
                     state = GetImage;
@@ -595,7 +657,7 @@ void BiometricsFingerprint::EnrollAsync() {
                 else {
                     // NOTE: Based on authentication loop!
 
-                    wakeup_reason = mWt.WaitForEvent(mEnrollTimeout);
+                    wakeup_reason = mMux.waitForEvent(mEnrollTimeout);
                     if (wakeup_reason == WakeupReason::Timeout)
                         timeout = true;
                 }
@@ -622,12 +684,6 @@ void BiometricsFingerprint::EnrollAsync() {
         NotifyEnrollResult(mNewPrintId, 0);
         ALOGE_IF(rc, "%s: Failed to save print, rc = %d", __func__, rc);
     }
-}
-
-void BiometricsFingerprint::OnEnterIdle() {
-    // Set the hardware back to idle state:
-    int rc = mTrustlet.SetWorkMode(2);
-    LOG_ALWAYS_FATAL_IF(rc, "SetWorkMode failed with rc = %d", rc);
 }
 
 void BiometricsFingerprint::NotifyAcquired(FingerprintAcquiredInfo acquiredInfo) {

@@ -66,7 +66,7 @@ int main() {
             break;
         case egistec::FpHwId::Fpc:
             ALOGI("FPC sensor installed");
-            bio = FPCHAL::getInstance();
+            bio = new FPCHAL();
             break;
         default:
             ALOGE("No HAL instance defined for hardware type %d", type);
@@ -75,7 +75,7 @@ int main() {
 #elif defined(USE_FPC_GANGES)
     bio = new GangesHAL(std::move(dev));
 #else
-    bio = FPCHAL::getInstance();
+    bio = new FPCHAL();
 #endif
 
     configureRpcThreadpool(1, true /*callerWillJoin*/);

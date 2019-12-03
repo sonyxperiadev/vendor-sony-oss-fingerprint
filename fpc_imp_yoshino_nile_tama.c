@@ -32,7 +32,6 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <sys/stat.h>
-#include <sys/ioctl.h>
 
 #include <hardware/fingerprint.h>
 
@@ -50,8 +49,8 @@ typedef struct {
     uint64_t auth_id;
 } fpc_data_t;
 
-err_t fpc_deep_sleep(fpc_imp_data_t *data);
-err_t fpc_sensor_wake(fpc_imp_data_t *data);
+static err_t fpc_deep_sleep(fpc_imp_data_t *data);
+static err_t fpc_sensor_wake(fpc_imp_data_t *data);
 
 static const char *error_strings[] = {
 #if defined(USE_FPC_NILE) || defined(USE_FPC_TAMA)
@@ -71,7 +70,7 @@ static const char *error_strings[] = {
     "FPC_ERROR_IO",
     "FPC_ERROR_NOSPACE",
     "FPC_ERROR_COMM",
-    "FPC_ERROR_ALLOC"
+    "FPC_ERROR_ALLOC",
     "FPC_ERROR_TIMEDOUT",
     "FPC_ERROR_INPUT",
 };
@@ -411,11 +410,9 @@ err_t fpc_capture_image(fpc_imp_data_t *data)
     {
         ALOGV("Finger lost as expected");
         int tries = 0;
-#ifdef USE_FPC_TAMA
         ret = fpc_sensor_wake(data);
         if (ret)
             return ret;
-#endif
         for (;;) {
             ret = fpc_wait_finger_down(data);
             ALOGV("fpc_wait_finger_down = 0x%08X", ret);
@@ -469,6 +466,122 @@ err_t fpc_capture_image(fpc_imp_data_t *data)
         fpc_keep_awake(&data->event, 1, 40);
         // Wait 20ms before checking if the finger is lost again.
         usleep(20000);
+    }
+
+    return ret;
+}
+
+bool fpc_navi_supported(fpc_imp_data_t __unused *data)
+{
+    return true;
+}
+
+err_t fpc_navi_enter(fpc_imp_data_t *data)
+{
+    ALOGV(__func__);
+    fpc_data_t *ldata = (fpc_data_t *)data;
+
+    fpc_navi_cmd_t cmd = {
+        .group_id = FPC_GROUP_NAVIGATION,
+        .cmd_id = FPC_NAVIGATION_ENTER,
+    };
+
+    int ret = send_custom_cmd(ldata, &cmd, sizeof(cmd));
+
+    ALOGE_IF(ret || cmd.ret_val, "Failed to send NAVIGATION_ENTER rc=%d s=%d", ret, cmd.ret_val);
+
+    return ret || cmd.ret_val;
+}
+
+err_t fpc_navi_exit(fpc_imp_data_t *data)
+{
+    ALOGV(__func__);
+    fpc_data_t *ldata = (fpc_data_t *)data;
+
+    fpc_navi_cmd_t cmd = {
+        .group_id = FPC_GROUP_NAVIGATION,
+        .cmd_id = FPC_NAVIGATION_EXIT,
+    };
+
+    int ret = send_custom_cmd(ldata, &cmd, sizeof(cmd));
+
+    ALOGE_IF(ret || cmd.ret_val, "Failed to send NAVIGATION_EXIT rc=%d s=%d", ret, cmd.ret_val);
+
+    return ret || cmd.ret_val;
+}
+
+err_t fpc_navi_poll(fpc_imp_data_t *data)
+{
+    ALOGV(__func__);
+    fpc_data_t *ldata = (fpc_data_t *)data;
+    int ret = 0;
+
+    fpc_navi_cmd_t cmd = {
+        .group_id = FPC_GROUP_NAVIGATION,
+        .cmd_id = FPC_NAVIGATION_POLL,
+    };
+
+    // Bail out early when an event is available, instead of
+    // waiting for FPC_EVENT_EVENTFD from fpc_poll_event:
+    while (!is_event_available(&data->event)) {
+        ret = send_custom_cmd(ldata, &cmd, sizeof(cmd));
+
+        ALOGE_IF(ret || cmd.ret_val, "Failed to send NAVIGATION_POLL rc=%d s=%d", ret, cmd.ret_val);
+        if (ret || cmd.ret_val)
+            return ret || cmd.ret_val;
+
+        ALOGV("Gesture: %d, down: %d, poll: %d, mask: %x", cmd.gesture, cmd.finger_on, cmd.should_poll, cmd.mask);
+
+        if (cmd.gesture) {
+            switch (cmd.gesture) {
+                case FPC_GESTURE_UP:
+                    ALOGI("Gesture: Up");
+                    fpc_uinput_click(&data->uinput, KEY_UP);
+                    break;
+                case FPC_GESTURE_DOWN:
+                    ALOGI("Gesture: Down");
+                    fpc_uinput_click(&data->uinput, KEY_DOWN);
+                    break;
+                case FPC_GESTURE_LEFT:
+                    ALOGI("Gesture: Left");
+                    fpc_uinput_click(&data->uinput, KEY_LEFT);
+                    break;
+                case FPC_GESTURE_RIGHT:
+                    ALOGI("Gesture: Right");
+                    fpc_uinput_click(&data->uinput, KEY_RIGHT);
+                    break;
+
+                    // Not handled:
+                case FPC_GESTURE_GONE:
+                    // Single tap but could also be an unknown-gesture error,
+                    // as it happens when sliding too fast and not holding it
+                    // near the end.
+                    ALOGI("Gesture: Finger gone");
+                    break;
+                case FPC_GESTURE_HOLD:
+                    ALOGI("Gesture: Hold");
+                    break;
+                case FPC_GESTURE_DOUBLE_TAP:
+                    ALOGI("Gesture: Double tap");
+                    break;
+            }
+        }
+
+        if (!cmd.should_poll) {
+            // Decrease spam on TZ. Sleeping for such a short time
+            // (contrary to multiple milliseconds) makes the gestures
+            // much more responsive and accurate.
+            usleep(10);
+        } else {
+            ALOGW_IF(cmd.should_poll == 2, "%s: Need to do something special on should_poll == 2!", __func__);
+            ret = fpc_poll_event(&data->event);
+
+            if (ret == FPC_EVENT_ERROR)
+                return -1;
+            if (ret != FPC_EVENT_FINGER)
+                // No error, but an event needs to be handled:
+                return 0;
+        }
     }
 
     return ret;
@@ -542,20 +655,22 @@ err_t fpc_auth_start(fpc_imp_data_t __unused  *data)
 
 err_t fpc_auth_step(fpc_imp_data_t *data, uint32_t *print_id)
 {
-    fpc_data_t *ldata = (fpc_data_t*)data;
+    fpc_data_t *ldata = (fpc_data_t *)data;
     fpc_send_identify_t identify_cmd = {
         .commandgroup = FPC_GROUP_TEMPLATE,
         .command = FPC_IDENTIFY,
     };
 
     int result = send_custom_cmd(ldata, &identify_cmd, sizeof(identify_cmd));
-    if(result)
-    {
-        ALOGE("Error identifying: %d || %d\n", result, identify_cmd.status);
-        return -1;
+    if (result) {
+        ALOGE("Failed identifying, result=%d", result);
+        return result;
+    } else if (identify_cmd.status < 0) {
+        ALOGE("Failed identifying, status=%d", identify_cmd.status);
+        return identify_cmd.status;
     }
 
-    ALOGD("Print identified as %d\n", identify_cmd.id);
+    ALOGD("Print identified as %u\n", identify_cmd.id);
 
     *print_id = identify_cmd.id;
     return identify_cmd.status;
@@ -668,14 +783,26 @@ err_t fpc_store_user_db(fpc_imp_data_t *data, uint32_t __unused length, char* pa
 err_t fpc_update_template(fpc_imp_data_t *data)
 {
     ALOGV(__func__);
-    fpc_data_t *ldata = (fpc_data_t*)data;
-    int result;
+    fpc_data_t *ldata = (fpc_data_t *)data;
 
-    result = send_normal_command(ldata, FPC_GROUP_TEMPLATE, FPC_UPDATE_TEMPLATE);
-    if(!result)
+    fpc_update_template_t cmd = {
+        .cmd_id = FPC_UPDATE_TEMPLATE,
+        .group_id = FPC_GROUP_TEMPLATE,
+    };
+
+    int result = send_custom_cmd(ldata, &cmd, sizeof(cmd));
+
+    if (result)
         return result;
 
-    return -1;
+    if (cmd.status) {
+        ALOGE("%s failed, status=%d", __func__, cmd.status);
+        return cmd.status;
+    }
+
+    ALOGD("%s: Template changed: %d\n", __func__, cmd.has_changed);
+
+    return cmd.has_changed;
 }
 
 err_t fpc_deep_sleep(fpc_imp_data_t *data)
@@ -715,13 +842,15 @@ err_t fpc_close(fpc_imp_data_t **data)
 
     fpc_deep_sleep(*data);
 
-    fpc_event_destroy(&ldata->data.event);
-
     ldata->qsee_handle->shutdown_app(&ldata->fpc_handle);
     if (fpc_set_power(&(*data)->event, FPC_PWROFF) < 0) {
         ALOGE("Error stopping device\n");
         return -1;
     }
+
+    fpc_event_destroy(&ldata->data.event);
+    fpc_uinput_destroy(&ldata->data.uinput);
+
     qsee_free_handle(&ldata->qsee_handle);
     free(ldata);
     *data = NULL;
@@ -745,6 +874,7 @@ err_t fpc_init(fpc_imp_data_t **data, int event_fd)
     fpc_data->auth_id = 0;
 
     fpc_event_create(&fpc_data->data.event, event_fd);
+    fpc_uinput_create(&fpc_data->data.uinput);
 
     if (fpc_set_power(&fpc_data->data.event, FPC_PWRON) < 0) {
         ALOGE("Error starting device\n");

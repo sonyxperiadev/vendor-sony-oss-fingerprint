@@ -20,8 +20,9 @@
 namespace egistec::nile {
 
 using ::android::hardware::hidl_vec;
+using namespace ::SynchronizedWorker;
 
-EgisOperationLoops::EgisOperationLoops(uint64_t deviceId, EgisFpDevice &&dev) : mDeviceId(deviceId), mDev(std::move(dev)), mAuthenticatorId(GetRand64()), mWt(this, mDev.GetFd()) {
+EgisOperationLoops::EgisOperationLoops(uint64_t deviceId, EgisFpDevice &&dev) : mDeviceId(deviceId), mDev(std::move(dev)), mAuthenticatorId(GetRand64()), mWt(this), mMux(mDev.GetFd(), mWt.getEventFd()) {
     mWt.Start();
 }
 
@@ -81,7 +82,7 @@ bool EgisOperationLoops::ConvertAndCheckError(int &rc, EGISAPTrustlet::API &lock
 }
 
 bool EgisOperationLoops::CheckAndHandleCancel(EGISAPTrustlet::API &lockedBuffer) {
-    auto cancelled = mWt.IsCanceled();
+    auto cancelled = mWt.isEventAvailable();
     ALOGV("%s: %d", __func__, cancelled);
     if (cancelled)
         RunCancel(lockedBuffer);
@@ -192,7 +193,7 @@ void EgisOperationLoops::NotifyBadImage(int reason) {
 FingerprintError EgisOperationLoops::HandleMainStep(command_buffer_t &cmd, int timeoutSec) {
     switch (cmd.step) {
         case Step::WaitFingerprint: {
-            auto reason = mWt.WaitForEvent(timeoutSec);
+            auto reason = mMux.waitForEvent(timeoutSec);
             switch (reason) {
                 case WakeupReason::Timeout:
                     // Return timeout: this notifies the service and stops the current loop.
@@ -234,6 +235,10 @@ FingerprintError EgisOperationLoops::HandleMainStep(command_buffer_t &cmd, int t
             break;
     }
     return FingerprintError::ERROR_NO_ERROR;
+}
+
+Thread &EgisOperationLoops::getWorker() {
+    return mWt;
 }
 
 void EgisOperationLoops::EnrollAsync() {
@@ -532,7 +537,7 @@ int EgisOperationLoops::Prepare() {
 bool EgisOperationLoops::Cancel() {
     ALOGI("Requesting thread to cancel current operation...");
     // Always let the thread handle cancel requests to prevent concurrency issues.
-    return mWt.MoveToState(AsyncState::Cancel);
+    return mWt.moveToState(AsyncState::Idle);
 }
 
 int EgisOperationLoops::Enumerate() {
@@ -587,7 +592,7 @@ int EgisOperationLoops::Enroll(const hw_auth_token_t &hat, uint32_t timeoutSec) 
         goto error;
     }
 
-    rc = !mWt.MoveToState(AsyncState::Enroll);
+    rc = !mWt.moveToState(AsyncState::Enroll);
     if (!rc)
         return 0;
 
@@ -612,7 +617,7 @@ int EgisOperationLoops::Authenticate(uint64_t challenge) {
         goto error;
     }
 
-    rc = !mWt.MoveToState(AsyncState::Authenticate);
+    rc = !mWt.moveToState(AsyncState::Authenticate);
     if (!rc)
         return 0;
 

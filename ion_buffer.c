@@ -11,8 +11,6 @@
 #define ION_ALIGN 0x1000
 #define ION_ALIGN_MASK (ION_ALIGN - 1)
 
-__BEGIN_DECLS
-
 static int open_ion_device() {
     int ion_dev_fd = ion_open();
 
@@ -73,5 +71,3 @@ int32_t qcom_km_ion_dealloc(struct qcom_km_ion_info_t *handle) {
 
     return rc;
 }
-
-__END_DECLS

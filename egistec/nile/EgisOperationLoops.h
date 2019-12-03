@@ -1,6 +1,7 @@
 #pragma once
 
-#include <WorkerThread.h>
+#include <EventMultiplexer.h>
+#include <SynchronizedWorkerThread.h>
 #include <android/hardware/biometrics/fingerprint/2.1/IBiometricsFingerprintClientCallback.h>
 #include <egistec/EgisFpDevice.h>
 #include <sys/eventfd.h>
@@ -18,14 +19,15 @@ using ::android::hardware::biometrics::fingerprint::V2_1::IBiometricsFingerprint
  * External wrapper class containing TZ communication logic
  * (Separated from datastructural/architectural choices).
  */
-class EgisOperationLoops : public EGISAPTrustlet, public WorkHandler {
+class EgisOperationLoops : public EGISAPTrustlet, public ::SynchronizedWorker::WorkHandler {
     const uint64_t mDeviceId;
     EgisFpDevice mDev;
     sp<IBiometricsFingerprintClientCallback> mClientCallback;
     std::mutex mClientCallbackMutex;
     uint32_t mGid;
     uint64_t mAuthenticatorId;
-    WorkerThread mWt;
+    ::SynchronizedWorker::Thread mWt;
+    EventMultiplexer mMux;
 
    public:
     EgisOperationLoops(uint64_t deviceId, EgisFpDevice &&);
@@ -73,8 +75,9 @@ class EgisOperationLoops : public EGISAPTrustlet, public WorkHandler {
 
     // WorkHandler implementations:
     // These should run asynchronously from HAL calls:
-    void EnrollAsync() override;
+    ::SynchronizedWorker::Thread &getWorker();
     void AuthenticateAsync() override;
+    void EnrollAsync() override;
 
    public:
     uint64_t GetAuthenticatorId();

@@ -6,11 +6,13 @@
 
 #include <android/hardware/biometrics/fingerprint/2.1/IBiometricsFingerprint.h>
 
-#include <WorkerThread.h>
+#include <EventMultiplexer.h>
+#include <SynchronizedWorkerThread.h>
 #include <egistec/EgisFpDevice.h>
 #include <array>
 #include "EGISAPTrustlet.h"
 #include "QSEEKeymasterTrustlet.h"
+#include "UInput.h"
 
 namespace egistec::ganges {
 
@@ -26,7 +28,7 @@ using ::android::hardware::biometrics::fingerprint::V2_1::IBiometricsFingerprint
 using ::android::hardware::biometrics::fingerprint::V2_1::IBiometricsFingerprintClientCallback;
 using ::android::hardware::biometrics::fingerprint::V2_1::RequestStatus;
 
-struct BiometricsFingerprint : public IBiometricsFingerprint, public WorkHandler {
+struct BiometricsFingerprint : public IBiometricsFingerprint, public ::SynchronizedWorker::WorkHandler {
    public:
     BiometricsFingerprint(EgisFpDevice &&);
     ~BiometricsFingerprint();
@@ -49,8 +51,10 @@ struct BiometricsFingerprint : public IBiometricsFingerprint, public WorkHandler
     MasterKey mMasterKey;
     sp<IBiometricsFingerprintClientCallback> mClientCallback;
     std::mutex mClientCallbackMutex;
+    UInput uinput;
     uint32_t mGid = -1;
-    WorkerThread mWt;
+    ::SynchronizedWorker::Thread mWt;
+    EventMultiplexer mMux;
 
     int mEnrollTimeout = -1;
     uint32_t mNewPrintId = -1;
@@ -59,9 +63,10 @@ struct BiometricsFingerprint : public IBiometricsFingerprint, public WorkHandler
     int64_t mOperationId;
 
     // WorkHandler implementations:
+    ::SynchronizedWorker::Thread &getWorker();
     void AuthenticateAsync() override;
     void EnrollAsync() override;
-    void OnEnterIdle() override;
+    void IdleAsync() override;
 
     void NotifyAcquired(FingerprintAcquiredInfo);
     void NotifyAuthenticated(uint32_t fid, const hw_auth_token_t &hat);

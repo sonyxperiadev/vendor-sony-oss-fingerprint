@@ -1,10 +1,10 @@
 #include "common.h"
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
+#include <string.h>
 #include <sys/ioctl.h>
+#include <unistd.h>
 #if PLATFORM_SDK_VERSION >= 28
 #include <bits/epoll_event.h>
 #endif
@@ -16,7 +16,8 @@
 
 #define EVENT_COUNT 2
 
-err_t fpc_event_create(fpc_event_t *event, int event_fd) {
+err_t fpc_event_create(fpc_event_t *event, int event_fd)
+{
     int fd = 0, rc;
 
     event->event_fd = event_fd;
@@ -58,7 +59,8 @@ err_t fpc_event_create(fpc_event_t *event, int event_fd) {
     return 0;
 }
 
-err_t fpc_event_destroy(fpc_event_t *event) {
+err_t fpc_event_destroy(fpc_event_t *event)
+{
     event->event_fd = -1;
     close(event->dev_fd);
     event->dev_fd = -1;
@@ -73,7 +75,7 @@ err_t fpc_set_power(const fpc_event_t *event, int poweron)
 
     ret = ioctl(event->dev_fd, FPC_IOCWPREPARE, poweron);
     if (ret < 0) {
-        ALOGE("Error preparing FPC device\n");
+        ALOGE("Failed preparing FPC device (%d) %s", ret, strerror(errno));
         return -1;
     }
 
@@ -87,7 +89,7 @@ err_t fpc_get_power(const fpc_event_t *event)
 
     ret = ioctl(event->dev_fd, FPC_IOCRPREPARE, &reply);
     if (ret < 0) {
-        ALOGE("Error preparing FPC device\n");
+        ALOGE("Failed reading device power state (%d) %s", ret, strerror(errno));
         return -1;
     }
 
@@ -104,8 +106,7 @@ err_t fpc_poll_event(const fpc_event_t *event)
     struct epoll_event events[EVENT_COUNT];
     cnt = epoll_wait(event->epoll_fd, events, EVENT_COUNT, -1);
 
-    if (cnt < 0)
-    {
+    if (cnt < 0) {
         ALOGE("Failed waiting for epoll: %d", cnt);
         return FPC_EVENT_ERROR;
     }
@@ -116,8 +117,7 @@ err_t fpc_poll_event(const fpc_event_t *event)
     }
 
     for (int i = 0; i < cnt; ++i)
-        if (events[i].data.fd == event->event_fd && events[i].events | EPOLLIN)
-        {
+        if (events[i].data.fd == event->event_fd && events[i].events | EPOLLIN) {
             ALOGD("Waking up from eventfd");
             return FPC_EVENT_EVENTFD;
         }
@@ -127,7 +127,33 @@ err_t fpc_poll_event(const fpc_event_t *event)
     return FPC_EVENT_FINGER;
 }
 
-err_t fpc_keep_awake(const fpc_event_t *event, int awake, unsigned int timeout) {
+/**
+ * Checks if an event (request to switch to a different state) is available.
+ *
+ * Does not return true on (spurious) hardware/irq raise.
+ */
+err_t is_event_available(const fpc_event_t *event)
+{
+    int cnt;
+
+    struct pollfd pfd = {
+        .fd = event->event_fd,
+        .events = POLLIN,
+    };
+
+    // 0 = do not block at all:
+    cnt = poll(&pfd, 1, 0);
+
+    if (cnt < 0) {
+        ALOGE("Failed waiting for epoll: %d", cnt);
+        return cnt;
+    }
+
+    return cnt > 0;
+}
+
+err_t fpc_keep_awake(const fpc_event_t *event, int awake, unsigned int timeout)
+{
     struct {
         int awake;
         unsigned int timeout;
