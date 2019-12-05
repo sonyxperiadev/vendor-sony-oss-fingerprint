@@ -473,7 +473,12 @@ err_t fpc_capture_image(fpc_imp_data_t *data)
 
 bool fpc_navi_supported(fpc_imp_data_t __unused *data)
 {
+#ifdef USE_FPC_YOSHINO
+    // The TZ-app crashes the entire phone with this feature.
+    return false;
+#else
     return true;
+#endif
 }
 
 err_t fpc_navi_enter(fpc_imp_data_t *data)

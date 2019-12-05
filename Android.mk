@@ -21,6 +21,7 @@ endif
 ifeq ($(filter-out yoshino,$(SOMC_PLATFORM)),)
 LOCAL_SRC_FILES += fpc_imp_yoshino_nile_tama.c
 HAS_FPC := true
+LOCAL_CFLAGS += -DUSE_FPC_YOSHINO
 endif
 
 ifeq ($(filter-out nile,$(SOMC_PLATFORM)),)
