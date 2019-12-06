@@ -531,7 +531,7 @@ void BiometricsFingerprint::AuthenticateAsync() {
                 result = fpc_init(&mDevice->fpc, mWt.getEventFd());
                 LOG_ALWAYS_FATAL_IF(result < 0, "REINITIALIZE: Failed to init fpc: %d", result);
 #ifdef USE_FPC_YOSHINO
-                int grp_err = __setActiveGroup(mDevice, gid);
+                int grp_err = __setActiveGroup(gid);
                 if (grp_err)
                     ALOGE("%s : Cannot reinitialize database", __func__);
 #else
