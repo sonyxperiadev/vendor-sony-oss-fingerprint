@@ -10,7 +10,7 @@
 #include <array>
 #include "EgisOperationLoops.h"
 
-namespace egistec::nile {
+namespace egistec::legacy {
 
 using ::android::sp;
 using ::android::hardware::hidl_array;
@@ -44,4 +44,4 @@ struct BiometricsFingerprint : public IBiometricsFingerprint {
     EgisOperationLoops loops;
 };
 
-}  // namespace egistec::nile
+}  // namespace egistec::legacy

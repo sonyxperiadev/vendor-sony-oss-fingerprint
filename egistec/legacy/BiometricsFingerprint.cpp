@@ -4,7 +4,7 @@
 #define LOG_TAG "FPC ET"
 #include <log/log.h>
 
-namespace egistec::nile {
+namespace egistec::legacy {
 
 BiometricsFingerprint::BiometricsFingerprint(EgisFpDevice &&dev) : loops(reinterpret_cast<uint64_t>(this), std::move(dev)) {
     QSEEKeymasterTrustlet keymaster;
@@ -99,4 +99,4 @@ Return<RequestStatus> BiometricsFingerprint::authenticate(uint64_t operationId, 
     return loops.Authenticate(operationId) ? RequestStatus::SYS_EINVAL : RequestStatus::SYS_OK;
 }
 
-}  // namespace egistec::nile
+}  // namespace egistec::legacy

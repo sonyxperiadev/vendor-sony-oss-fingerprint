@@ -4,7 +4,7 @@
 #define LOG_TAG "FPC ET"
 #include <log/log.h>
 
-namespace egistec::ganges {
+namespace egistec::current {
 
 using namespace ::SynchronizedWorker;
 
@@ -748,4 +748,4 @@ void BiometricsFingerprint::NotifyRemove(uint32_t fid, uint32_t remaining) {
             remaining);
 }
 
-}  // namespace egistec::ganges
+}  // namespace egistec::current

@@ -8,7 +8,7 @@
 #include <mutex>
 #include "EGISAPTrustlet.h"
 
-namespace egistec::nile {
+namespace egistec::legacy {
 
 using ::android::sp;
 using ::android::hardware::biometrics::fingerprint::V2_1::FingerprintAcquiredInfo;
@@ -92,4 +92,4 @@ class EgisOperationLoops : public EGISAPTrustlet, public ::SynchronizedWorker::W
     int Authenticate(uint64_t challenge);
 };
 
-}  // namespace egistec::nile
+}  // namespace egistec::legacy

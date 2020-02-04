@@ -8,7 +8,7 @@
 #include "QSEEKeymasterTrustlet.h"
 #include "QSEETrustlet.h"
 
-namespace egistec::nile {
+namespace egistec::legacy {
 
 typedef struct {
     int qty;
@@ -350,4 +350,4 @@ class EGISAPTrustlet : public QSEETrustlet {
     int SetMasterKey(const MasterKey &);
 };
 
-}  // namespace egistec::nile
+}  // namespace egistec::legacy

@@ -19,9 +19,9 @@
 #include <hidl/HidlSupport.h>
 #include <hidl/HidlTransportSupport.h>
 #include "BiometricsFingerprint.h"
-#include "egistec/ganges/BiometricsFingerprint.h"
-#include "egistec/nile/BiometricsFingerprint.h"
-#include "egistec/nile/EGISAPTrustlet.h"
+#include "egistec/current/BiometricsFingerprint.h"
+#include "egistec/legacy/BiometricsFingerprint.h"
+#include "egistec/legacy/EGISAPTrustlet.h"
 
 using android::NO_ERROR;
 using android::sp;
@@ -31,8 +31,8 @@ using android::hardware::joinRpcThreadpool;
 using android::hardware::biometrics::fingerprint::V2_1::IBiometricsFingerprint;
 
 using FPCHAL = ::fpc::BiometricsFingerprint;
-using NileHAL = ::egistec::nile::BiometricsFingerprint;
-using GangesHAL = ::egistec::ganges::BiometricsFingerprint;
+using LegacyEgistecHAL = ::egistec::legacy::BiometricsFingerprint;
+using CurrentEgistecHAL = ::egistec::current::BiometricsFingerprint;
 
 int main() {
     android::sp<IBiometricsFingerprint> bio;
@@ -50,18 +50,18 @@ int main() {
             ALOGI("Egistec sensor installed");
 
             {
-                ::egistec::nile::EGISAPTrustlet trustlet;
+                ::egistec::legacy::EGISAPTrustlet trustlet;
                 is_old_hal = trustlet.MatchFirmware();
                 // Scope closes trustlet. While this could be reused,
                 // opt for starting fresh in case the command introduces
                 // unexpected state changes.
             }
             if (is_old_hal) {
-                ALOGI("Using (old) Nile HAL");
-                bio = new NileHAL(std::move(dev));
+                ALOGI("Using legacy Egistec (Nile) HAL");
+                bio = new LegacyEgistecHAL(std::move(dev));
             } else {
-                ALOGI("Using (new) Ganges HAL on Nile");
-                bio = new GangesHAL(std::move(dev));
+                ALOGI("Using new Egistec (Ganges+) HAL on Nile");
+                bio = new CurrentEgistecHAL(std::move(dev));
             }
             break;
         case egistec::FpHwId::Fpc:
@@ -73,7 +73,7 @@ int main() {
             return 1;
     }
 #elif defined(USE_FPC_GANGES)
-    bio = new GangesHAL(std::move(dev));
+    bio = new CurrentEgistecHAL(std::move(dev));
 #else
     bio = new FPCHAL();
 #endif

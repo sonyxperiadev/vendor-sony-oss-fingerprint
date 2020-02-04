@@ -17,7 +17,7 @@
 #define LOG_NDEBUG 0
 #include <log/log.h>
 
-namespace egistec::nile {
+namespace egistec::legacy {
 
 using ::android::hardware::hidl_vec;
 using namespace ::SynchronizedWorker;
@@ -627,4 +627,4 @@ error:
     return rc;
 }
 
-}  // namespace egistec::nile
+}  // namespace egistec::legacy

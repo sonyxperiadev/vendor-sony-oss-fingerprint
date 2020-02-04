@@ -9,7 +9,7 @@
 #include "QSEEKeymasterTrustlet.h"
 #include "QSEETrustlet.h"
 
-namespace egistec::ganges {
+namespace egistec::current {
 
 enum class CommandId : uint32_t {
     SetMasterKey = 0,
@@ -233,4 +233,4 @@ class EGISAPTrustlet : public QSEETrustlet {
     int UpdateTemplate(bool &updated);
 };
 
-}  // namespace egistec::ganges
+}  // namespace egistec::current

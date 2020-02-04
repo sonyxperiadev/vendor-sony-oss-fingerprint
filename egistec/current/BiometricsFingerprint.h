@@ -14,7 +14,7 @@
 #include "QSEEKeymasterTrustlet.h"
 #include "UInput.h"
 
-namespace egistec::ganges {
+namespace egistec::current {
 
 using ::android::sp;
 using ::android::hardware::hidl_array;
@@ -75,4 +75,4 @@ struct BiometricsFingerprint : public IBiometricsFingerprint, public ::Synchroni
     void NotifyRemove(uint32_t fid, uint32_t remaining);
 };
 
-}  // namespace egistec::ganges
+}  // namespace egistec::current

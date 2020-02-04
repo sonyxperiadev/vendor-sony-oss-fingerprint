@@ -6,7 +6,7 @@
 // #define LOG_NDEBUG 0
 #include <log/log.h>
 
-namespace egistec::ganges {
+namespace egistec::current {
 
 void log_hex(const char *data, int length) {
     if (length <= 0 || data == NULL)
@@ -437,4 +437,4 @@ int EGISAPTrustlet::UpdateTemplate(bool &updated) {
     return 0;
 }
 
-}  // namespace egistec::ganges
+}  // namespace egistec::current
