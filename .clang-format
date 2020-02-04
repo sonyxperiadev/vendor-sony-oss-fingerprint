@@ -4,3 +4,14 @@ UseTab: Never
 PointerAlignment: Right
 NamespaceIndentation: None
 ColumnLimit: 0
+IncludeBlocks: Regroup
+IncludeCategories:
+  # Relative includes first:
+  - Regex:           '^".*'
+    Priority:        1
+  # Other (local or global) includes:
+  - Regex:           '^<.*\.h>'
+    Priority:        2
+  # std includes last; prevent as much leaking as possible:
+  - Regex:           '^<.*'
+    Priority:        3

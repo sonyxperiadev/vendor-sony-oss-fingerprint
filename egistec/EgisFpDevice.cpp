@@ -1,9 +1,11 @@
 #include "EgisFpDevice.h"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <string.h>
 #include <unistd.h>
+
 #include <FormatException.hpp>
 
 namespace egistec {

@@ -1,4 +1,5 @@
 #include "BiometricsFingerprint.h"
+
 #include "FormatException.hpp"
 
 #define LOG_TAG "FPC ET"

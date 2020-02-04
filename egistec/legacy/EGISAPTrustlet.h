@@ -1,12 +1,14 @@
 #pragma once
 
+#include "QSEEKeymasterTrustlet.h"
+#include "QSEETrustlet.h"
+
 #include <arpa/inet.h>
 #include <hardware/hw_auth_token.h>
 #include <string.h>
+
 #include <algorithm>
 #include <vector>
-#include "QSEEKeymasterTrustlet.h"
-#include "QSEETrustlet.h"
 
 namespace egistec::legacy {
 

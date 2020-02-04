@@ -1,6 +1,8 @@
 #include "EGISAPTrustlet.h"
-#include <string.h>
+
 #include "FormatException.hpp"
+
+#include <string.h>
 
 #define LOG_TAG "FPC ET"
 // #define LOG_NDEBUG 0
