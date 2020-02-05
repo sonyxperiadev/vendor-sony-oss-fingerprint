@@ -116,7 +116,10 @@ static int fpc_write_input_event(const fpc_uinput_t *uinput, unsigned short type
     };
 
     int written = write(uinput->fd, &ie, sizeof(ie));
-    if (written != sizeof(ie)) {
+    if (written < 0) {
+        ALOGE("Failed to write legacy uinput setup! rc=%d: %s", written, strerror(errno));
+        return -1;
+    } else if (written != sizeof(ie)) {
         ALOGE("Didn't write full input_event, only %d/%zu bytes!", written, sizeof(ie));
         return -1;
     }
