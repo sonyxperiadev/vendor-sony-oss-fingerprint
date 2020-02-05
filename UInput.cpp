@@ -6,6 +6,8 @@
 #define LOG_TAG "FPC UInput"
 #include <log/log.h>
 
+#define UINPUT_FPC_DEVICE_NAME "uinput-fpc"
+
 UInput::UInput() {
     int rc = fpc_uinput_create(&uinput);
     LOG_ALWAYS_FATAL_IF(rc, "Failed to setup uinput: %d", rc);
@@ -28,7 +30,7 @@ int fpc_uinput_create(fpc_uinput_t *uinput)
         .id.bustype = BUS_VIRTUAL,
     };
     // This name must match the keylayout/idc filename in /vendor/usr/{keylayout,idc}:
-    strcpy(usetup.name, "uinput-fpc");
+    strcpy(usetup.name, UINPUT_FPC_DEVICE_NAME);
 
     int fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
 
@@ -60,9 +62,25 @@ int fpc_uinput_create(fpc_uinput_t *uinput)
 
     rc = ioctl(fd, UI_DEV_SETUP, &usetup);
     if (rc < 0) {
-        ALOGE("Failed to setup uinput device! rc=%d: %s", rc, strerror(errno));
-        close(fd);
-        return rc;
+        ALOGW("Failed to setup uinput device! rc=%d: %s, falling back to write.", rc, strerror(errno));
+
+        struct uinput_user_dev usetup_legacy = {
+            .id.bustype = BUS_VIRTUAL,
+        };
+
+        strcpy(usetup_legacy.name, UINPUT_FPC_DEVICE_NAME);
+
+        rc = TEMP_FAILURE_RETRY(write(fd, &usetup_legacy, sizeof(usetup_legacy)));
+        if (rc < 0) {
+            ALOGE("Failed to setup uinput device! rc=%d: %s", rc, strerror(errno));
+            close(fd);
+            return rc;
+        } else if (rc != sizeof(usetup_legacy)) {
+            ALOGE("Didn't write full usetup_legacy, only %d/%zu bytes!", rc, sizeof(usetup_legacy));
+            /* The kernel _should_ always accept the full object. */
+            close(fd);
+            return -EBUSY;
+        }
     }
 
     rc = ioctl(fd, UI_DEV_CREATE);
