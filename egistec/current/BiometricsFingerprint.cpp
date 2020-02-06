@@ -33,6 +33,9 @@ BiometricsFingerprint::BiometricsFingerprint(EgisFpDevice &&dev) : mDev(std::mov
     rc = mTrustlet.Calibrate();
     LOG_ALWAYS_FATAL_IF(rc, "Calibrate failed with rc = %d", rc);
 
+    mHwId = mTrustlet.GetHwId();
+    ALOGI("HWID: %x", mHwId);
+
     mWt.Start();
 }
 

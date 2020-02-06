@@ -51,6 +51,8 @@ enum class CommandId : uint32_t {
 
     OpenSpi = 0x29,
     CloseSpi = 0x2a,
+
+    GetHwId = 0x64,
 };
 
 enum class ImageResult : uint32_t {
@@ -209,6 +211,7 @@ class EGISAPTrustlet : public QSEETrustlet {
     int UninitializeSdk();
     int UninitializeSensor();
 
+    uint32_t GetHwId();
     uint64_t GetAuthenticatorId();
 
     int GetImage(ImageResult &quality);

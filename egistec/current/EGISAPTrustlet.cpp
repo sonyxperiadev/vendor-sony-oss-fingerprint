@@ -230,6 +230,13 @@ int EGISAPTrustlet::UninitializeSensor() {
     return SendCommand(CommandId::UninitializeSensor);
 }
 
+uint32_t EGISAPTrustlet::GetHwId() {
+    TypedIonBuffer<uint32_t> id;
+    int rc = SendModifiedCommand(id, CommandId::GetHwId);
+    LOG_ALWAYS_FATAL_IF(rc, "Failed to get hardware ID!");
+    return *id;
+}
+
 uint64_t EGISAPTrustlet::GetAuthenticatorId() {
     TypedIonBuffer<uint64_t> id;
     auto api = GetLockedAPI();

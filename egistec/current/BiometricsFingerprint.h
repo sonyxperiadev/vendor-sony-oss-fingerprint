@@ -54,6 +54,7 @@ struct BiometricsFingerprint : public IBiometricsFingerprint, public ::Synchroni
     std::mutex mClientCallbackMutex;
     UInput uinput;
     uint32_t mGid = -1;
+    uint32_t mHwId;
     ::SynchronizedWorker::Thread mWt;
     EventMultiplexer mMux;
 
