@@ -193,37 +193,6 @@ int EGISAPTrustlet::GetNavEvent(int &which) {
     return 0;
 }
 
-int EGISAPTrustlet::GetPrintIds(uint32_t gid, std::vector<uint32_t> &list) {
-    struct print_ids_t {
-        uint32_t ids[5];
-        uint32_t num_prints;
-    };
-
-    TypedIonBuffer<print_ids_t> prints;
-    auto api = GetLockedAPI();
-
-    int rc = SendModifiedCommand(api, prints, CommandId::GetPrintIds, gid);
-    if (rc)
-        return rc;
-
-    LOG_ALWAYS_FATAL_IF(api.Base().extra_buffer_size != sizeof(print_ids_t),
-                        "%s: did not return exactly sizeof(print_ids_t) bytes!",
-                        __func__);
-
-    ALOGD("GetFingerList reported %d fingers", prints->num_prints);
-
-    list.clear();
-    list.reserve(prints->num_prints);
-    std::copy(prints->ids,
-              prints->ids + prints->num_prints,
-              std::back_inserter(list));
-
-    for (auto p : list)
-        ALOGD("Print: %u", p);
-
-    return 0;
-}
-
 int EGISAPTrustlet::InitializeAlgo() {
     return SendCommand(CommandId::InitializeAlgo);
 }
@@ -376,6 +345,37 @@ int EGISAPTrustlet::SaveEnrolledPrint(uint32_t gid, uint64_t fid) {
 
 int EGISAPTrustlet::FinalizeEnroll() {
     return SendCommand(CommandId::FinalizeEnroll);
+}
+
+int EGISAPTrustlet::GetPrintIds(uint32_t gid, std::vector<uint32_t> &list) {
+    struct print_ids_t {
+        uint32_t ids[5];
+        uint32_t num_prints;
+    };
+
+    TypedIonBuffer<print_ids_t> prints;
+    auto api = GetLockedAPI();
+
+    int rc = SendModifiedCommand(api, prints, CommandId::GetPrintIds, gid);
+    if (rc)
+        return rc;
+
+    LOG_ALWAYS_FATAL_IF(api.Base().extra_buffer_size != sizeof(print_ids_t),
+                        "%s: did not return exactly sizeof(print_ids_t) bytes!",
+                        __func__);
+
+    ALOGD("GetFingerList reported %d fingers", prints->num_prints);
+
+    list.clear();
+    list.reserve(prints->num_prints);
+    std::copy(prints->ids,
+              prints->ids + prints->num_prints,
+              std::back_inserter(list));
+
+    for (auto p : list)
+        ALOGD("Print: %u", p);
+
+    return 0;
 }
 
 int EGISAPTrustlet::RemovePrint(uint32_t gid, uint32_t fid) {

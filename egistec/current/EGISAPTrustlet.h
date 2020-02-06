@@ -199,7 +199,6 @@ class EGISAPTrustlet : public QSEETrustlet {
 
     int Calibrate();
     int GetNavEvent(int &which);
-    int GetPrintIds(uint32_t gid, std::vector<uint32_t> &);
     int InitializeAlgo();
     int InitializeSensor();
     int SetDataPath(const char *);
@@ -225,8 +224,11 @@ class EGISAPTrustlet : public QSEETrustlet {
     int SaveEnrolledPrint(uint32_t gid, uint64_t fid);
     int FinalizeEnroll();
 
+    // Print management
+    int GetPrintIds(uint32_t gid, std::vector<uint32_t> &);
     int RemovePrint(uint32_t gid, uint32_t fid);
 
+    // Identification
     int FinalizeIdentify();
     int GetEnrolledCount(uint32_t &);
     int Identify(uint32_t gid, uint64_t opid, identify_result_t &);
