@@ -37,7 +37,7 @@ using CurrentEgistecHAL = ::egistec::current::BiometricsFingerprint;
 int main() {
     android::sp<IBiometricsFingerprint> bio;
 
-#if defined(USE_FPC_NILE) || defined(USE_FPC_GANGES)
+#if defined(USE_FPC_NILE) || defined(USE_FPC_GANGES) || defined(USE_FPC_KUMANO)
     ::egistec::EgisFpDevice dev;
 #endif
 
@@ -72,7 +72,7 @@ int main() {
             ALOGE("No HAL instance defined for hardware type %d", type);
             return 1;
     }
-#elif defined(USE_FPC_GANGES)
+#elif defined(USE_FPC_GANGES) || defined(USE_FPC_KUMANO)
     bio = new CurrentEgistecHAL(std::move(dev));
 #else
     bio = new FPCHAL();

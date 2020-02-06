@@ -40,6 +40,10 @@ ifeq ($(filter-out ganges,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += -DUSE_FPC_GANGES
 endif
 
+ifeq ($(filter-out kumano,$(SOMC_PLATFORM)),)
+LOCAL_CFLAGS += -DUSE_FPC_KUMANO
+endif
+
 ifneq ($(HAS_FPC),true)
 # This file heavily depends on fpc_ implementations from the
 # above fpc_imp_* files. There is no sensible default file

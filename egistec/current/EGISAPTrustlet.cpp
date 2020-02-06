@@ -49,7 +49,11 @@ void log_hex(const char *data, int length) {
     free(base);
 }
 
+#ifdef USE_FPC_KUMANO
+EGISAPTrustlet::EGISAPTrustlet() : QSEETrustlet("egista", 0x2400, /* path: */ "/odm/firmware") {
+#else
 EGISAPTrustlet::EGISAPTrustlet() : QSEETrustlet("egisap32", 0x2400) {
+#endif
 }
 
 int EGISAPTrustlet::SendCommand(EGISAPTrustlet::API &api) {
