@@ -160,6 +160,7 @@ err_t send_buffer_command(fpc_data_t *ldata, uint32_t group_id, uint32_t cmd_id,
 
     if(send_modified_command_to_tz(ldata, ihandle) < 0) {
         ALOGE("Error sending data to tz\n");
+        ldata->qsee_handle->ion_free(&ihandle);
         return -1;
     }
 
@@ -184,6 +185,7 @@ err_t send_command_result_buffer(fpc_data_t *ldata, uint32_t group_id, uint32_t 
 
     if(send_modified_command_to_tz(ldata, ihandle) < 0) {
         ALOGE("Error sending data to tz\n");
+        ldata->qsee_handle->ion_free(&ihandle);
         return -1;
     }
     memcpy(buffer, &keydata_cmd->data[0], length);
@@ -207,6 +209,7 @@ err_t send_custom_cmd(fpc_data_t *ldata, void *buffer, uint32_t len)
 
     if(send_modified_command_to_tz(ldata, ihandle) < 0) {
         ALOGE("Error sending data to tz\n");
+        ldata->qsee_handle->ion_free(&ihandle);
         return -1;
     }
 
