@@ -98,6 +98,7 @@ err_t send_modified_command_to_tz(fpc_data_t *ldata, struct qcom_km_ion_info_t i
     ion_fd_info.data[0].fd = ihandle.ifd_data_fd;
     ion_fd_info.data[0].cmd_buf_offset = 4;
 
+    *(uint32_t*)rec_cmd = 0;
     send_cmd->v_addr = (intptr_t) ihandle.ion_sbuffer;
     uint32_t length = (ihandle.sbuf_len + 4095) & (~4095);
     send_cmd->length = length;
