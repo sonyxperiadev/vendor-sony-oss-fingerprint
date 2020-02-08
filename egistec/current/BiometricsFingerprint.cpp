@@ -393,6 +393,12 @@ void BiometricsFingerprint::AuthenticateAsync() {
                 }
                 break;
         }
+
+        if (rc == 99) {
+            ALOGW("Resetting device...");
+            rc = mDev.Reset();
+            ALOGE_IF(rc, "%s: Failed to reset device, rc = %d", __func__, rc);
+        }
     }
 
     mTrustlet.SetSpiState(0);
@@ -674,6 +680,12 @@ void BiometricsFingerprint::EnrollAsync() {
                         timeout = true;
                 }
                 break;
+        }
+
+        if (rc == 99) {
+            ALOGW("Resetting device...");
+            rc = mDev.Reset();
+            ALOGE_IF(rc, "%s: Failed to reset device, rc = %d", __func__, rc);
         }
     }
 
