@@ -443,9 +443,17 @@ void BiometricsFingerprint::AuthenticateAsync() {
 }
 
 void BiometricsFingerprint::IdleAsync() {
-    DeviceEnableGuard<EgisFpDevice> guard{mDev};
     int rc = 0;
     int which;
+
+    if (mHwId >= 0x600) {
+        // 6xx does not support gestures.
+        rc = mTrustlet.SetWorkMode(WorkMode::Sleep);
+        LOG_ALWAYS_FATAL_IF(rc, "SetWorkMode(WorkMode::Sleep) failed with rc=%d", rc);
+        return WorkHandler::IdleAsync();
+    }
+
+    DeviceEnableGuard<EgisFpDevice> guard{mDev};
 
     rc = mTrustlet.SetWorkMode(WorkMode::NavigationDetect);
     LOG_ALWAYS_FATAL_IF(rc, "SetWorkMode(WorkMode::NavigationDetect) failed with rc=%d", rc);
