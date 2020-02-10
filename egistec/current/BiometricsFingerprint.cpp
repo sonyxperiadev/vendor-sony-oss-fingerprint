@@ -1,10 +1,11 @@
 #include "BiometricsFingerprint.h"
+
 #include "FormatException.hpp"
 
 #define LOG_TAG "FPC ET"
 #include <log/log.h>
 
-namespace egistec::ganges {
+namespace egistec::current {
 
 using namespace ::SynchronizedWorker;
 
@@ -31,6 +32,9 @@ BiometricsFingerprint::BiometricsFingerprint(EgisFpDevice &&dev) : mDev(std::mov
 
     rc = mTrustlet.Calibrate();
     LOG_ALWAYS_FATAL_IF(rc, "Calibrate failed with rc = %d", rc);
+
+    mHwId = mTrustlet.GetHwId();
+    ALOGI("HWID: %x", mHwId);
 
     mWt.Start();
 }
@@ -389,6 +393,12 @@ void BiometricsFingerprint::AuthenticateAsync() {
                 }
                 break;
         }
+
+        if (rc == 99) {
+            ALOGW("Resetting device...");
+            rc = mDev.Reset();
+            ALOGE_IF(rc, "%s: Failed to reset device, rc = %d", __func__, rc);
+        }
     }
 
     mTrustlet.SetSpiState(0);
@@ -439,9 +449,17 @@ void BiometricsFingerprint::AuthenticateAsync() {
 }
 
 void BiometricsFingerprint::IdleAsync() {
-    DeviceEnableGuard<EgisFpDevice> guard{mDev};
     int rc = 0;
     int which;
+
+    if (mHwId >= 0x600) {
+        // 6xx does not support gestures.
+        rc = mTrustlet.SetWorkMode(WorkMode::Sleep);
+        LOG_ALWAYS_FATAL_IF(rc, "SetWorkMode(WorkMode::Sleep) failed with rc=%d", rc);
+        return WorkHandler::IdleAsync();
+    }
+
+    DeviceEnableGuard<EgisFpDevice> guard{mDev};
 
     rc = mTrustlet.SetWorkMode(WorkMode::NavigationDetect);
     LOG_ALWAYS_FATAL_IF(rc, "SetWorkMode(WorkMode::NavigationDetect) failed with rc=%d", rc);
@@ -663,6 +681,12 @@ void BiometricsFingerprint::EnrollAsync() {
                 }
                 break;
         }
+
+        if (rc == 99) {
+            ALOGW("Resetting device...");
+            rc = mDev.Reset();
+            ALOGE_IF(rc, "%s: Failed to reset device, rc = %d", __func__, rc);
+        }
     }
 
     ALOGI("%s: Finalizing, Percentage = %d%%", __func__, percentage_done);
@@ -748,4 +772,4 @@ void BiometricsFingerprint::NotifyRemove(uint32_t fid, uint32_t remaining) {
             remaining);
 }
 
-}  // namespace egistec::ganges
+}  // namespace egistec::current

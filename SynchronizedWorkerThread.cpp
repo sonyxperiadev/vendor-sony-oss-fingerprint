@@ -111,11 +111,12 @@ void Thread::Start() {
 }
 
 void Thread::Stop() {
-    std::unique_lock<std::mutex> lock(mEventfdMutex);
+    std::unique_lock<std::mutex> writerLock(mEventWriterMutex);
+    std::unique_lock<std::mutex> threadLock(mThreadMutex);
 
     if (thread.joinable()) {
         ALOGW("Requesting thread to stop");
-        auto success = waitForState(AsyncState::Stop, lock);
+        auto success = waitForState(AsyncState::Stop, writerLock, threadLock);
         LOG_ALWAYS_FATAL_IF(!success, "Failed to stop thread!");
         thread.join();
     }
@@ -132,7 +133,7 @@ bool Thread::Resume() {
 }
 
 AsyncState Thread::consumeState() {
-    std::unique_lock<std::mutex> lock(mEventfdMutex);
+    std::unique_lock<std::mutex> lock(mThreadMutex);
     eventfd_t stateAvailable;
     AsyncState state = AsyncState::Idle;
 
@@ -148,6 +149,8 @@ AsyncState Thread::consumeState() {
 
     currentState = state;
     desiredState = AsyncState::Invalid;
+
+    lock.unlock();
     mThreadStateChanged.notify_all();
 
     return state;
@@ -173,18 +176,22 @@ bool Thread::isEventAvailable(int timeout) const {
 }
 
 bool Thread::moveToState(AsyncState state) {
-    std::unique_lock<std::mutex> lock(mEventfdMutex);
-    return moveToState(state, lock);
+    std::unique_lock<std::mutex> writerLock(mEventWriterMutex);
+    std::unique_lock<std::mutex> threadLock(mThreadMutex);
+    return moveToState(state, writerLock, threadLock);
 }
 
 bool Thread::waitForState(AsyncState state) {
-    std::unique_lock<std::mutex> lock(mEventfdMutex);
-    return waitForState(state, lock);
+    std::unique_lock<std::mutex> writerLock(mEventWriterMutex);
+    std::unique_lock<std::mutex> threadLock(mThreadMutex);
+    return waitForState(state, writerLock, threadLock);
 }
 
-bool Thread::moveToState(AsyncState state, std::unique_lock<std::mutex> &lock) {
-    LOG_ALWAYS_FATAL_IF(lock.mutex() != &mEventfdMutex || !lock.owns_lock(),
-                        "Caller didn't lock mEventfdMutex!");
+bool Thread::moveToState(AsyncState state, std::unique_lock<std::mutex> &writerLock, std::unique_lock<std::mutex> &threadLock) {
+    LOG_ALWAYS_FATAL_IF(writerLock.mutex() != &mEventWriterMutex || !writerLock.owns_lock(),
+                        "Caller didn't lock mEventWriterMutex!");
+    LOG_ALWAYS_FATAL_IF(threadLock.mutex() != &mThreadMutex || !threadLock.owns_lock(),
+                        "Caller didn't lock mThreadMutex!");
 
     ALOGD("%s: Setting state to %s", __func__, AsyncStateToChar(state));
 
@@ -200,20 +207,20 @@ bool Thread::moveToState(AsyncState state, std::unique_lock<std::mutex> &lock) {
     return !rc;
 }
 
-bool Thread::waitForState(AsyncState state, std::unique_lock<std::mutex> &lock) {
+bool Thread::waitForState(AsyncState state, std::unique_lock<std::mutex> &writerLock, std::unique_lock<std::mutex> &threadLock) {
     constexpr auto wait_timeout = std::chrono::seconds(3);
 
-    // WARNING: moveToState validates lock. If critical code is inserted,
-    // be sure to apply the same validation here as well!
+    // WARNING: moveToState validates the locks. If critical code is
+    // inserted, be sure to apply the same validation here as well!
 
-    if (!moveToState(state, lock)) {
+    if (!moveToState(state, writerLock, threadLock)) {
         ALOGE("Failed to transition from %s to %s",
               AsyncStateToChar(currentState), AsyncStateToChar(state));
         return false;
     }
 
     // Wait for the thread to enter the new state:
-    bool success = mThreadStateChanged.wait_for(lock, wait_timeout, [&]() {
+    bool success = mThreadStateChanged.wait_for(threadLock, wait_timeout, [state, this]() {
         return currentState == state;
     });
 

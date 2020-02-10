@@ -1,14 +1,16 @@
 #pragma once
 
-#include <arpa/inet.h>
-#include <hardware/hw_auth_token.h>
-#include <string.h>
-#include <algorithm>
-#include <vector>
 #include "QSEEKeymasterTrustlet.h"
 #include "QSEETrustlet.h"
 
-namespace egistec::nile {
+#include <arpa/inet.h>
+#include <hardware/hw_auth_token.h>
+#include <string.h>
+
+#include <algorithm>
+#include <vector>
+
+namespace egistec::legacy {
 
 typedef struct {
     int qty;
@@ -350,4 +352,4 @@ class EGISAPTrustlet : public QSEETrustlet {
     int SetMasterKey(const MasterKey &);
 };
 
-}  // namespace egistec::nile
+}  // namespace egistec::legacy

@@ -49,7 +49,12 @@ class Thread {
     AsyncState currentState = AsyncState::Invalid, desiredState = AsyncState::Invalid;
     int event_fd;
     std::condition_variable mThreadStateChanged;
-    std::mutex mEventfdMutex;
+    /**
+     * Two mutexes are required to syncronize between multiple invocations of moveToState/waitForState,
+     * and between waitForState and consumeState (called in the worker thread).
+     */
+    std::mutex mEventWriterMutex,
+        mThreadMutex;
     std::thread thread;
     WorkHandler *mHandler;
 
@@ -73,9 +78,9 @@ class Thread {
     bool waitForState(AsyncState);
 
    private:
-    // Unsafe functions, both locks need to lock private mEventfdMutex
-    bool moveToState(AsyncState, std::unique_lock<std::mutex> &);
-    bool waitForState(AsyncState, std::unique_lock<std::mutex> &);
+    // Unsafe functions, both locks need to lock private mEventWriterMutex
+    bool moveToState(AsyncState, std::unique_lock<std::mutex> &writerLock, std::unique_lock<std::mutex> &threadLock);
+    bool waitForState(AsyncState, std::unique_lock<std::mutex> &writerLock, std::unique_lock<std::mutex> &threadLock);
 };
 
 }  // namespace SynchronizedWorker

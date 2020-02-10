@@ -1,12 +1,14 @@
 #include "EGISAPTrustlet.h"
-#include <string.h>
+
 #include "FormatException.hpp"
+
+#include <string.h>
 
 #define LOG_TAG "FPC ET"
 // #define LOG_NDEBUG 0
 #include <log/log.h>
 
-namespace egistec::ganges {
+namespace egistec::current {
 
 void log_hex(const char *data, int length) {
     if (length <= 0 || data == NULL)
@@ -47,7 +49,11 @@ void log_hex(const char *data, int length) {
     free(base);
 }
 
+#ifdef USE_FPC_KUMANO
+EGISAPTrustlet::EGISAPTrustlet() : QSEETrustlet("egista", 0x2400, /* path: */ "/odm/firmware") {
+#else
 EGISAPTrustlet::EGISAPTrustlet() : QSEETrustlet("egisap32", 0x2400) {
+#endif
 }
 
 int EGISAPTrustlet::SendCommand(EGISAPTrustlet::API &api) {
@@ -191,37 +197,6 @@ int EGISAPTrustlet::GetNavEvent(int &which) {
     return 0;
 }
 
-int EGISAPTrustlet::GetPrintIds(uint32_t gid, std::vector<uint32_t> &list) {
-    struct print_ids_t {
-        uint32_t ids[5];
-        uint32_t num_prints;
-    };
-
-    TypedIonBuffer<print_ids_t> prints;
-    auto api = GetLockedAPI();
-
-    int rc = SendModifiedCommand(api, prints, CommandId::GetPrintIds, gid);
-    if (rc)
-        return rc;
-
-    LOG_ALWAYS_FATAL_IF(api.Base().extra_buffer_size != sizeof(print_ids_t),
-                        "%s: did not return exactly sizeof(print_ids_t) bytes!",
-                        __func__);
-
-    ALOGD("GetFingerList reported %d fingers", prints->num_prints);
-
-    list.clear();
-    list.reserve(prints->num_prints);
-    std::copy(prints->ids,
-              prints->ids + prints->num_prints,
-              std::back_inserter(list));
-
-    for (auto p : list)
-        ALOGD("Print: %u", p);
-
-    return 0;
-}
-
 int EGISAPTrustlet::InitializeAlgo() {
     return SendCommand(CommandId::InitializeAlgo);
 }
@@ -257,6 +232,13 @@ int EGISAPTrustlet::UninitializeSdk() {
 
 int EGISAPTrustlet::UninitializeSensor() {
     return SendCommand(CommandId::UninitializeSensor);
+}
+
+uint32_t EGISAPTrustlet::GetHwId() {
+    TypedIonBuffer<uint32_t> id;
+    int rc = SendModifiedCommand(id, CommandId::GetHwId);
+    LOG_ALWAYS_FATAL_IF(rc, "Failed to get hardware ID!");
+    return *id;
 }
 
 uint64_t EGISAPTrustlet::GetAuthenticatorId() {
@@ -376,6 +358,37 @@ int EGISAPTrustlet::FinalizeEnroll() {
     return SendCommand(CommandId::FinalizeEnroll);
 }
 
+int EGISAPTrustlet::GetPrintIds(uint32_t gid, std::vector<uint32_t> &list) {
+    struct print_ids_t {
+        uint32_t ids[5];
+        uint32_t num_prints;
+    };
+
+    TypedIonBuffer<print_ids_t> prints;
+    auto api = GetLockedAPI();
+
+    int rc = SendModifiedCommand(api, prints, CommandId::GetPrintIds, gid);
+    if (rc)
+        return rc;
+
+    LOG_ALWAYS_FATAL_IF(api.Base().extra_buffer_size != sizeof(print_ids_t),
+                        "%s: did not return exactly sizeof(print_ids_t) bytes!",
+                        __func__);
+
+    ALOGD("GetFingerList reported %d fingers", prints->num_prints);
+
+    list.clear();
+    list.reserve(prints->num_prints);
+    std::copy(prints->ids,
+              prints->ids + prints->num_prints,
+              std::back_inserter(list));
+
+    for (auto p : list)
+        ALOGD("Print: %u", p);
+
+    return 0;
+}
+
 int EGISAPTrustlet::RemovePrint(uint32_t gid, uint32_t fid) {
     auto api = GetLockedAPI();
     api.GetRequest().fid = fid;
@@ -437,4 +450,4 @@ int EGISAPTrustlet::UpdateTemplate(bool &updated) {
     return 0;
 }
 
-}  // namespace egistec::ganges
+}  // namespace egistec::current

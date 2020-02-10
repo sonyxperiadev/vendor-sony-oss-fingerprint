@@ -3,21 +3,23 @@
 #if PLATFORM_SDK_VERSION >= 28
 #include <bits/epoll_event.h>
 #endif
+#include "EgisOperationLoops.h"
+#include "FormatException.hpp"
+
 #include <arpa/inet.h>
 #include <hardware/hw_auth_token.h>
 #include <string.h>
 #include <sys/epoll.h>
 #include <sys/poll.h>
 #include <unistd.h>
+
 #include <algorithm>
-#include "EgisOperationLoops.h"
-#include "FormatException.hpp"
 
 #define LOG_TAG "FPC ET"
 #define LOG_NDEBUG 0
 #include <log/log.h>
 
-namespace egistec::nile {
+namespace egistec::legacy {
 
 using ::android::hardware::hidl_vec;
 using namespace ::SynchronizedWorker;
@@ -627,4 +629,4 @@ error:
     return rc;
 }
 
-}  // namespace egistec::nile
+}  // namespace egistec::legacy

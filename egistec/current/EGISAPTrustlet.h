@@ -1,15 +1,17 @@
 #pragma once
 
+#include "QSEEKeymasterTrustlet.h"
+#include "QSEETrustlet.h"
+
 #include <IonBuffer.h>
 #include <arpa/inet.h>
 #include <hardware/hw_auth_token.h>
 #include <string.h>
+
 #include <algorithm>
 #include <vector>
-#include "QSEEKeymasterTrustlet.h"
-#include "QSEETrustlet.h"
 
-namespace egistec::ganges {
+namespace egistec::current {
 
 enum class CommandId : uint32_t {
     SetMasterKey = 0,
@@ -49,6 +51,8 @@ enum class CommandId : uint32_t {
 
     OpenSpi = 0x29,
     CloseSpi = 0x2a,
+
+    GetHwId = 0x64,
 };
 
 enum class ImageResult : uint32_t {
@@ -197,7 +201,6 @@ class EGISAPTrustlet : public QSEETrustlet {
 
     int Calibrate();
     int GetNavEvent(int &which);
-    int GetPrintIds(uint32_t gid, std::vector<uint32_t> &);
     int InitializeAlgo();
     int InitializeSensor();
     int SetDataPath(const char *);
@@ -208,6 +211,7 @@ class EGISAPTrustlet : public QSEETrustlet {
     int UninitializeSdk();
     int UninitializeSensor();
 
+    uint32_t GetHwId();
     uint64_t GetAuthenticatorId();
 
     int GetImage(ImageResult &quality);
@@ -223,8 +227,11 @@ class EGISAPTrustlet : public QSEETrustlet {
     int SaveEnrolledPrint(uint32_t gid, uint64_t fid);
     int FinalizeEnroll();
 
+    // Print management
+    int GetPrintIds(uint32_t gid, std::vector<uint32_t> &);
     int RemovePrint(uint32_t gid, uint32_t fid);
 
+    // Identification
     int FinalizeIdentify();
     int GetEnrolledCount(uint32_t &);
     int Identify(uint32_t gid, uint64_t opid, identify_result_t &);
@@ -233,4 +240,4 @@ class EGISAPTrustlet : public QSEETrustlet {
     int UpdateTemplate(bool &updated);
 };
 
-}  // namespace egistec::ganges
+}  // namespace egistec::current
