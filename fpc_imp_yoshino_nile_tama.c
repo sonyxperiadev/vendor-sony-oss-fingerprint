@@ -90,7 +90,7 @@ err_t send_modified_command_to_tz(fpc_data_t *ldata, struct qcom_km_ion_info_t i
     struct QSEECom_handle *handle = ldata->fpc_handle;
 
     fpc_send_mod_cmd_t* send_cmd = (fpc_send_mod_cmd_t*) handle->ion_sbuffer;
-    void *rec_cmd = handle->ion_sbuffer + TZ_RESPONSE_OFFSET;
+    int32_t *rec_cmd = (int32_t*)(handle->ion_sbuffer + TZ_RESPONSE_OFFSET);
     struct QSEECom_ion_fd_info  ion_fd_info;
 
     memset(&ion_fd_info, 0, sizeof(struct QSEECom_ion_fd_info));
@@ -98,7 +98,7 @@ err_t send_modified_command_to_tz(fpc_data_t *ldata, struct qcom_km_ion_info_t i
     ion_fd_info.data[0].fd = ihandle.ifd_data_fd;
     ion_fd_info.data[0].cmd_buf_offset = 4;
 
-    *(uint32_t*)rec_cmd = 0;
+    *rec_cmd = 0;
     send_cmd->v_addr = (intptr_t) ihandle.ion_sbuffer;
     uint32_t length = (ihandle.sbuf_len + 4095) & (~4095);
     send_cmd->length = length;
@@ -109,7 +109,7 @@ err_t send_modified_command_to_tz(fpc_data_t *ldata, struct qcom_km_ion_info_t i
         ALOGE("Error sending modified command: %d\n", result);
         return -1;
     }
-    if((result = *(int32_t*)rec_cmd) != 0)
+    if((result = *rec_cmd) != 0)
     {
         ALOGE("Error in tz command (%d) : %s\n", result, fpc_error_str(result));
         return -2;
