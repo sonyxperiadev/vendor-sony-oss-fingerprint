@@ -270,6 +270,8 @@ void BiometricsFingerprint::AuthenticateAsync() {
     identify_result_t identify_result;
     ImageResult image_result;
     WakeupReason wakeup_reason;
+    int reImaged = 0;
+    bool force_retry = false;
 
     rc = mTrustlet.InitializeIdentify();
     if (rc) {
@@ -279,7 +281,7 @@ void BiometricsFingerprint::AuthenticateAsync() {
     }
 
     while (!done && !rc && !canceled && !timeout) {
-        if (mWt.isEventAvailable()) {
+        if (mWt.isEventAvailable() && !force_retry) {
             canceled = true;
             break;
         }
@@ -306,6 +308,7 @@ void BiometricsFingerprint::AuthenticateAsync() {
                     break;
 
                 state = WaitFingerLost;
+                force_retry = false;
 
                 switch (image_result) {
                     case ImageResult::Good:
@@ -313,17 +316,52 @@ void BiometricsFingerprint::AuthenticateAsync() {
 
                         // Proceed to enroll step:
                         state = Identify;
+                        reImaged = 0;
                         break;
                     case ImageResult::TooFast:
                         NotifyAcquired(FingerprintAcquiredInfo::ACQUIRED_TOO_FAST);
                         break;
                     case ImageResult::ImagerDirty:
                     case ImageResult::ImagerDirty9:
-                        NotifyAcquired(FingerprintAcquiredInfo::ACQUIRED_IMAGER_DIRTY);
-                        usleep(500000);
+                        if (reImaged > 6) {
+                            NotifyAcquired(FingerprintAcquiredInfo::ACQUIRED_IMAGER_DIRTY);
+                            usleep(100000);
+                            reImaged = 0;
+                        } else {
+                            // Disable the sensor: the TZAPP will reset it completely!
+                            rc = ResetSensor();
+                            if (rc) {
+                                // If it fails, our sensor is KO.
+                                rc = mDev.Reset();
+                                break;
+                            }
+
+                            // ...And acquire a new image!
+                            reImaged++;
+                            force_retry = true;
+                            state = GetImage;
+                            usleep(150000);
+                        }
                         break;
                     case ImageResult::Partial:
-                        NotifyAcquired(FingerprintAcquiredInfo::ACQUIRED_PARTIAL);
+                        if (reImaged > 6) {
+                            NotifyAcquired(FingerprintAcquiredInfo::ACQUIRED_PARTIAL);
+                            reImaged = 0;
+                        } else {
+                            // Disable the sensor: the TZAPP will reset it completely!
+                            rc = ResetSensor();
+                            if (rc) {
+                                // If it fails, our sensor is KO.
+                                rc = mDev.Reset();
+                                break;
+                            }
+
+                            // ...And acquire a new image!
+                            reImaged++;
+                            force_retry = true;
+                            state = GetImage;
+                            usleep(150000);
+                        }
                         break;
                     case ImageResult::Mediocre:
                         // This seems to be a mediocre image. Use the result from Identify to determine
@@ -536,6 +574,8 @@ void BiometricsFingerprint::EnrollAsync() {
     ImageResult image_result;
     int steps_needed;
     WakeupReason wakeup_reason;
+    int reImaged = 0;
+    bool force_retry = false;
 
     rc = mTrustlet.InitializeEnroll();
     if (rc) {
@@ -545,12 +585,14 @@ void BiometricsFingerprint::EnrollAsync() {
     }
 
     while (percentage_done < 100 && !canceled && !timeout && !rc) {
-        if (mWt.isEventAvailable()) {
+        if (mWt.isEventAvailable() && !force_retry) {
             canceled = true;
             break;
         }
 
-        ALOGI("%s: State = %d", __func__, state);
+        ALOGI("%s: State = %d (reImaged = %d)", __func__, state, reImaged);
+        force_retry = false;
+
         switch (state) {
             case WaitFingerDown:
                 rc = mTrustlet.SetWorkMode(WorkMode::Detect);
@@ -578,18 +620,55 @@ void BiometricsFingerprint::EnrollAsync() {
                     case ImageResult::Good:
                         NotifyAcquired(FingerprintAcquiredInfo::ACQUIRED_GOOD);
 
-                        // Proceed to enroll step:
+                        // Proceed to enroll step and reset reImaged state:
                         state = EnrollStep;
+                        reImaged = 0;
                         break;
                     case ImageResult::TooFast:
                         NotifyAcquired(FingerprintAcquiredInfo::ACQUIRED_TOO_FAST);
                         break;
                     case ImageResult::Partial:
-                        NotifyAcquired(FingerprintAcquiredInfo::ACQUIRED_PARTIAL);
+                        if (reImaged > 6) {
+                            NotifyAcquired(FingerprintAcquiredInfo::ACQUIRED_PARTIAL);
+                            usleep(10000);
+                            reImaged = 0;
+                        } else {
+                            // Disable the sensor: the TZAPP will reset it completely!
+                            rc = ResetSensor();
+                            if (rc) {
+                                // If it fails, our sensor is KO.
+                                rc = mDev.Reset();
+                                break;
+                            }
+
+                            // ...And acquire a new image!
+                            reImaged++;
+                            force_retry = true;
+                            state = GetImage;
+                            usleep(150000);
+                        }
                         break;
                     case ImageResult::ImagerDirty:
                     case ImageResult::ImagerDirty9:
-                        NotifyAcquired(FingerprintAcquiredInfo::ACQUIRED_IMAGER_DIRTY);
+                        if (reImaged > 6) {
+                            NotifyAcquired(FingerprintAcquiredInfo::ACQUIRED_IMAGER_DIRTY);
+                            usleep(10000);
+                            reImaged = 0;
+                        } else {
+                            // Disable the sensor: the TZAPP will reset it completely!
+                            rc = ResetSensor();
+                            if (rc) {
+                                // If it fails, our sensor is KO.
+                                rc = mDev.Reset();
+                                break;
+                            }
+
+                            // ...And acquire a new image!
+                            reImaged++;
+                            force_retry = true;
+                            state = GetImage;
+                            usleep(150000);
+                        }
                         break;
                     default:
                         state = WaitFingerDown;
@@ -665,6 +744,12 @@ void BiometricsFingerprint::EnrollAsync() {
                 if (image_result == ImageResult::Lost) {
                     finger_state = 2;
 
+                    // If couldn't recalibrate, the sensor may be imprecise,
+                    // warn the user, but that's not a critical issue.
+                    rc = mTrustlet.Calibrate();
+                    ALOGE_IF(rc, "%s: Failed to recalibrate sensor "
+                                 "on FingerLost", __func__, rc);
+
                     rc = mTrustlet.Enroll(finger_state, 0, enroll_result);
                     ALOGE_IF(rc, "%s: Failed to Enroll(2), rc = %d", __func__, rc);
                     if (rc)
@@ -675,9 +760,7 @@ void BiometricsFingerprint::EnrollAsync() {
                         break;
                     // Proceed to next touch-step
                     state = WaitFingerDown;
-                } else if (image_result == ImageResult::DirtOnSensor)
-                    NotifyAcquired(FingerprintAcquiredInfo::ACQUIRED_IMAGER_DIRTY);
-                else {
+                } else {
                     // NOTE: Based on authentication loop!
 
                     wakeup_reason = mMux.waitForEvent(mEnrollTimeout);
@@ -713,6 +796,27 @@ void BiometricsFingerprint::EnrollAsync() {
         NotifyEnrollResult(mNewPrintId, 0);
         ALOGE_IF(rc, "%s: Failed to save print, rc = %d", __func__, rc);
     }
+}
+
+int BiometricsFingerprint::ResetSensor() {
+    int rc = 0;
+
+    // Disable the sensor: the TZAPP will reset it completely!
+    rc = mTrustlet.SetWorkMode(WorkMode::Sleep);
+
+    // Not fatal... but warn the user
+    ALOGE_IF(rc, "%s: Cannot set sleep workmode...\n",  __func__);
+
+    mTrustlet.SetSpiState(0);
+    usleep(150000);
+
+    // Set it back up
+    mTrustlet.SetSpiState(1);
+    usleep(10000);
+    rc = mTrustlet.SetWorkMode(WorkMode::Detect);
+    ALOGE_IF(rc, "%s: Cannot set DETECT mode!!\n",__func__);
+
+    return rc;
 }
 
 void BiometricsFingerprint::NotifyAcquired(FingerprintAcquiredInfo acquiredInfo) {
