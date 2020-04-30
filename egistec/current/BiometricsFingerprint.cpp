@@ -587,6 +587,10 @@ void BiometricsFingerprint::EnrollAsync() {
                     case ImageResult::Partial:
                         NotifyAcquired(FingerprintAcquiredInfo::ACQUIRED_PARTIAL);
                         break;
+                    case ImageResult::ImagerDirty:
+                    case ImageResult::ImagerDirty9:
+                        NotifyAcquired(FingerprintAcquiredInfo::ACQUIRED_IMAGER_DIRTY);
+                        break;
                     default:
                         state = WaitFingerDown;
                         break;
@@ -634,6 +638,7 @@ void BiometricsFingerprint::EnrollAsync() {
                         // Sends ACQUIRED_VENDOR, or FINGERPRINT_ACQUIRED_DETECTED in old-skool libhardware
                         break;
                     case ImageResult::ImagerDirty:
+                    case ImageResult::ImagerDirty9:
                         NotifyAcquired(FingerprintAcquiredInfo::ACQUIRED_IMAGER_DIRTY);
                         break;
                     case ImageResult::Partial:
