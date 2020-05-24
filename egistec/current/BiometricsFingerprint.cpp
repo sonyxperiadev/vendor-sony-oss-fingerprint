@@ -13,7 +13,11 @@ BiometricsFingerprint::BiometricsFingerprint(EgisFpDevice &&dev) : mDev(std::mov
     QSEEKeymasterTrustlet keymaster;
     int rc = 0;
 
+#ifdef HAS_DYNAMIC_POWER_MANAGEMENT
     DeviceEnableGuard<EgisFpDevice> guard{mDev};
+#else
+    mDev.Enable();
+#endif
     mDev.Reset();
 
     mMasterKey = keymaster.GetKey();
@@ -253,7 +257,9 @@ Thread &BiometricsFingerprint::getWorker() {
 }
 
 void BiometricsFingerprint::AuthenticateAsync() {
+#ifdef HAS_DYNAMIC_POWER_MANAGEMENT
     DeviceEnableGuard<EgisFpDevice> guard{mDev};
+#endif
 
     enum IdentifyState {
         WaitFingerDown = 1,
@@ -497,7 +503,9 @@ void BiometricsFingerprint::IdleAsync() {
         return WorkHandler::IdleAsync();
     }
 
+#ifdef HAS_DYNAMIC_POWER_MANAGEMENT
     DeviceEnableGuard<EgisFpDevice> guard{mDev};
+#endif
 
     rc = mTrustlet.SetWorkMode(WorkMode::NavigationDetect);
     LOG_ALWAYS_FATAL_IF(rc, "SetWorkMode(WorkMode::NavigationDetect) failed with rc=%d", rc);
@@ -551,7 +559,9 @@ void BiometricsFingerprint::IdleAsync() {
 }
 
 void BiometricsFingerprint::EnrollAsync() {
+#ifdef HAS_DYNAMIC_POWER_MANAGEMENT
     DeviceEnableGuard<EgisFpDevice> guard{mDev};
+#endif
 
     enum EnrollState {
         WaitFingerDown,
@@ -747,8 +757,10 @@ void BiometricsFingerprint::EnrollAsync() {
                     // If couldn't recalibrate, the sensor may be imprecise,
                     // warn the user, but that's not a critical issue.
                     rc = mTrustlet.Calibrate();
-                    ALOGE_IF(rc, "%s: Failed to recalibrate sensor "
-                                 "on FingerLost", __func__, rc);
+                    ALOGE_IF(rc,
+                             "%s: Failed to recalibrate sensor "
+                             "on FingerLost",
+                             __func__, rc);
 
                     rc = mTrustlet.Enroll(finger_state, 0, enroll_result);
                     ALOGE_IF(rc, "%s: Failed to Enroll(2), rc = %d", __func__, rc);
@@ -805,7 +817,7 @@ int BiometricsFingerprint::ResetSensor() {
     rc = mTrustlet.SetWorkMode(WorkMode::Sleep);
 
     // Not fatal... but warn the user
-    ALOGE_IF(rc, "%s: Cannot set sleep workmode...\n",  __func__);
+    ALOGE_IF(rc, "%s: Cannot set sleep workmode...\n", __func__);
 
     mTrustlet.SetSpiState(0);
     usleep(150000);
@@ -814,7 +826,7 @@ int BiometricsFingerprint::ResetSensor() {
     mTrustlet.SetSpiState(1);
     usleep(10000);
     rc = mTrustlet.SetWorkMode(WorkMode::Detect);
-    ALOGE_IF(rc, "%s: Cannot set DETECT mode!!\n",__func__);
+    ALOGE_IF(rc, "%s: Cannot set DETECT mode!!\n", __func__);
 
     return rc;
 }

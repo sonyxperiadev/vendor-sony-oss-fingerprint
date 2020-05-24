@@ -16,28 +16,37 @@ LOCAL_SRC_FILES := \
 ifeq ($(filter-out loire tone,$(SOMC_PLATFORM)),)
 LOCAL_SRC_FILES += fpc_imp_loire_tone.c
 HAS_FPC := true
+LOCAL_CFLAGS += -DHAS_DYNAMIC_POWER_MANAGEMENT
 endif
 
 ifeq ($(filter-out yoshino,$(SOMC_PLATFORM)),)
 LOCAL_SRC_FILES += fpc_imp_yoshino_nile_tama.c
 HAS_FPC := true
-LOCAL_CFLAGS += -DUSE_FPC_YOSHINO
+LOCAL_CFLAGS += \
+    -DUSE_FPC_YOSHINO \
+    -DHAS_DYNAMIC_POWER_MANAGEMENT
 endif
 
 ifeq ($(filter-out nile,$(SOMC_PLATFORM)),)
 LOCAL_SRC_FILES += fpc_imp_yoshino_nile_tama.c
 HAS_FPC := true
-LOCAL_CFLAGS += -DUSE_FPC_NILE
+LOCAL_CFLAGS += \
+    -DUSE_FPC_NILE \
+    -DHAS_DYNAMIC_POWER_MANAGEMENT
 endif
 
 ifeq ($(filter-out tama,$(SOMC_PLATFORM)),)
 LOCAL_SRC_FILES += fpc_imp_yoshino_nile_tama.c
 HAS_FPC := true
-LOCAL_CFLAGS += -DUSE_FPC_TAMA
+LOCAL_CFLAGS += \
+    -DUSE_FPC_TAMA \
+    -DHAS_DYNAMIC_POWER_MANAGEMENT
 endif
 
 ifeq ($(filter-out ganges,$(SOMC_PLATFORM)),)
-LOCAL_CFLAGS += -DUSE_FPC_GANGES
+LOCAL_CFLAGS += \
+    -DUSE_FPC_GANGES \
+    -DHAS_DYNAMIC_POWER_MANAGEMENT
 endif
 
 ifeq ($(filter-out kumano,$(SOMC_PLATFORM)),)
