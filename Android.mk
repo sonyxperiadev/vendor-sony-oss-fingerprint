@@ -71,8 +71,6 @@ LOCAL_SHARED_LIBRARIES := \
     liblog \
     libutils
 
-LOCAL_CONLYFLAGS := -std=c99
-
 ifeq ($(TARGET_COMPILE_WITH_MSM_KERNEL),true)
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
@@ -80,8 +78,7 @@ endif
 
 LOCAL_CFLAGS += \
     -DPLATFORM_SDK_VERSION=$(PLATFORM_SDK_VERSION) \
-    -fexceptions \
-    -std=c++1z
+    -fexceptions
 
 include $(BUILD_EXECUTABLE)
 endif
