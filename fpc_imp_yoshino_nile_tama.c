@@ -892,12 +892,10 @@ err_t fpc_init(fpc_imp_data_t **data, int event_fd)
     }
 
     ALOGI("Starting app %s\n", KM_TZAPP_NAME);
-    if (qsee_handle->load_trustlet(qsee_handle, &mKeymasterHandle, KM_TZAPP_ALT_PATH, KM_TZAPP_NAME, 1024) < 0) {
-        if (qsee_handle->load_trustlet(qsee_handle, &mKeymasterHandle, KM_TZAPP_PATH, KM_TZAPP_NAME, 1024) < 0) {
-            if (qsee_handle->load_trustlet(qsee_handle, &mKeymasterHandle, KM_TZAPP_PATH, KM_TZAPP_ALT_NAME, 1024) < 0) {
-                 ALOGE("Could not load app %s or %s\n", KM_TZAPP_NAME, KM_TZAPP_ALT_NAME);
-                goto err_alloc;
-            }
+    if (qsee_handle->load_trustlet(qsee_handle, &mKeymasterHandle, KM_TZAPP_PATH, KM_TZAPP_NAME, 1024) < 0) {
+        if (qsee_handle->load_trustlet(qsee_handle, &mKeymasterHandle, KM_TZAPP_PATH, KM_TZAPP_ALT_NAME, 1024) < 0) {
+            ALOGE("Could not load app " KM_TZAPP_NAME " or " KM_TZAPP_ALT_NAME " from " KM_TZAPP_PATH "\n");
+            goto err_alloc;
         }
     }
     fpc_data->qsee_handle = qsee_handle;
