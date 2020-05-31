@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-#define FP_TZAPP_PATH "/firmware/image/"
+#define FP_TZAPP_PATH "/vendor/firmware_mnt/image/"
 #define FP_TZAPP_NAME "fpctzapp"
 
 #define KM_TZAPP_PATH "/system/etc/firmware"

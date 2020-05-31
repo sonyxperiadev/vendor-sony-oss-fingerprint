@@ -6,7 +6,7 @@
 
 class QSEETrustlet {
    public:
-    QSEETrustlet(const char *app_name, uint32_t shared_buffer_size, const char *path = "/firmware/image");
+    QSEETrustlet(const char *app_name, uint32_t shared_buffer_size, const char *path = "/vendor/firmware_mnt/image");
     ~QSEETrustlet();
 
     // QSEETrustlet(const QSEETrustlet &) = delete;
