@@ -30,8 +30,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include <chrono>
-
 namespace fpc {
 
 using ::android::hardware::biometrics::fingerprint::V2_1::FingerprintAcquiredInfo;
