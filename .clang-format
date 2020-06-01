@@ -1,6 +1,7 @@
 BasedOnStyle: Google
 IndentWidth: 4
 UseTab: Never
+DerivePointerAlignment: false
 PointerAlignment: Right
 NamespaceIndentation: None
 ColumnLimit: 0
