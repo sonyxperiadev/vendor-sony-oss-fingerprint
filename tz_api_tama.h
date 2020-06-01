@@ -26,8 +26,7 @@ extern "C" {
 #define FP_TZAPP_PATH "/odm/firmware/"
 #define FP_TZAPP_NAME "fpctzfingerprint"
 
-#define KM_TZAPP_PATH "/system/etc/firmware"
-#define KM_TZAPP_ALT_PATH ""
+#define KM_TZAPP_PATH ""
 #define KM_TZAPP_NAME "keymaster64"
 #define KM_TZAPP_ALT_NAME "keymaster"
 
