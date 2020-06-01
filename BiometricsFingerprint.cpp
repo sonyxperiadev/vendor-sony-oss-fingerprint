@@ -203,17 +203,36 @@ Return<RequestStatus> BiometricsFingerprint::remove(uint32_t gid, uint32_t fid) 
     if (!mWt.Pause())
         return RequestStatus::SYS_EBUSY;
 
-    ALOGV("Removing finger %u for gid %u", fid, gid);
+    int rc = 0;
 
-    int rc = fpc_del_print_id(mDevice->fpc, fid);
-    if (!rc) {
-        mClientCallback->onRemoved(devId, fid, gid, 0);
+    if (fid == 0) {
+        // Delete all fingerprints when fid is zero:
+        ALOGD("Deleting all fingerprints for gid %d", gid);
 
-        uint32_t db_length = fpc_get_user_db_length(mDevice->fpc);
-        ALOGD("%s : User Database Length Is : %lu", __func__, (unsigned long)db_length);
-        rc = fpc_store_user_db(mDevice->fpc, db_length, mDevice->db_path);
+        fpc_fingerprint_index_t print_indices;
+        rc = fpc_get_print_index(mDevice->fpc, &print_indices);
+        if (!rc)
+            for (auto remaining = print_indices.print_count; remaining--;) {
+                auto fid = print_indices.prints[remaining];
+                ALOGD("Deleting print %d, %d remaining", fid, remaining);
+                rc = fpc_del_print_id(mDevice->fpc, fid);
+                if (rc)
+                    break;
+                mClientCallback->onRemoved(devId, fid, gid, remaining);
+            }
     } else {
-        mClientCallback->onError(devId, FingerprintError::ERROR_UNABLE_TO_REMOVE, -1);
+        ALOGD("Removing finger %u for gid %u", fid, gid);
+        rc = fpc_del_print_id(mDevice->fpc, fid);
+        if (!rc)
+            mClientCallback->onRemoved(devId, fid, gid, 0);
+    }
+
+    if (rc) {
+        mClientCallback->onError(devId, FingerprintError::ERROR_UNABLE_TO_REMOVE, 0);
+    } else {
+        uint32_t db_length = fpc_get_user_db_length(mDevice->fpc);
+        ALOGD("%s : User Database Length Is : %u", __func__, db_length);
+        rc = fpc_store_user_db(mDevice->fpc, db_length, mDevice->db_path);
     }
 
     mWt.Resume();
