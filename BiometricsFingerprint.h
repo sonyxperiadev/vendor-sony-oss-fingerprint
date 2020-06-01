@@ -17,29 +17,31 @@
 #ifndef ANDROID_HARDWARE_BIOMETRICS_FINGERPRINT_V2_1_BIOMETRICSFINGERPRINT_H
 #define ANDROID_HARDWARE_BIOMETRICS_FINGERPRINT_V2_1_BIOMETRICSFINGERPRINT_H
 
-#include <log/log.h>
+#include "SynchronizedWorkerThread.h"
+
+#include <android/hardware/biometrics/fingerprint/2.1/IBiometricsFingerprint.h>
 #include <hardware/fingerprint.h>
 #include <hidl/MQDescriptor.h>
 #include <hidl/Status.h>
-#include <android/hardware/biometrics/fingerprint/2.1/IBiometricsFingerprint.h>
+#include <log/log.h>
+
 #include <mutex>
-#include "SynchronizedWorkerThread.h"
 
 extern "C" {
-    #include "fpc_imp.h"
+#include "fpc_imp.h"
 }
 
 namespace fpc {
 
+using ::android::sp;
+using ::android::hardware::hidl_array;
+using ::android::hardware::hidl_string;
+using ::android::hardware::hidl_vec;
+using ::android::hardware::Return;
+using ::android::hardware::Void;
 using ::android::hardware::biometrics::fingerprint::V2_1::IBiometricsFingerprint;
 using ::android::hardware::biometrics::fingerprint::V2_1::IBiometricsFingerprintClientCallback;
 using ::android::hardware::biometrics::fingerprint::V2_1::RequestStatus;
-using ::android::hardware::Return;
-using ::android::hardware::Void;
-using ::android::hardware::hidl_array;
-using ::android::hardware::hidl_vec;
-using ::android::hardware::hidl_string;
-using ::android::sp;
 
 typedef struct {
     fpc_imp_data_t *fpc;
@@ -54,19 +56,19 @@ struct BiometricsFingerprint : public IBiometricsFingerprint, public ::Synchroni
     ~BiometricsFingerprint();
 
     // Methods from ::android::hardware::biometrics::fingerprint::V2_1::IBiometricsFingerprint follow.
-    Return<uint64_t> setNotify(const sp<IBiometricsFingerprintClientCallback>& clientCallback) override;
+    Return<uint64_t> setNotify(const sp<IBiometricsFingerprintClientCallback> &clientCallback) override;
     Return<uint64_t> preEnroll() override;
-    Return<RequestStatus> enroll(const hidl_array<uint8_t, 69>& hat, uint32_t gid, uint32_t timeoutSec) override;
+    Return<RequestStatus> enroll(const hidl_array<uint8_t, 69> &hat, uint32_t gid, uint32_t timeoutSec) override;
     Return<RequestStatus> postEnroll() override;
     Return<uint64_t> getAuthenticatorId() override;
     Return<RequestStatus> cancel() override;
     Return<RequestStatus> enumerate() override;
     Return<RequestStatus> remove(uint32_t gid, uint32_t fid) override;
-    Return<RequestStatus> setActiveGroup(uint32_t gid, const hidl_string& storePath) override;
+    Return<RequestStatus> setActiveGroup(uint32_t gid, const hidl_string &storePath) override;
     Return<RequestStatus> authenticate(uint64_t operationId, uint32_t gid) override;
 
     // Methods from ::SynchronizedWorker::WorkHandler
-    inline ::SynchronizedWorker::Thread& getWorker() override {
+    inline ::SynchronizedWorker::Thread &getWorker() override {
         return mWt;
     }
     void AuthenticateAsync() override;
@@ -82,7 +84,7 @@ struct BiometricsFingerprint : public IBiometricsFingerprint, public ::Synchroni
     ::SynchronizedWorker::Thread mWt;
     std::mutex mClientCallbackMutex;
     sp<IBiometricsFingerprintClientCallback> mClientCallback;
-    sony_fingerprint_device_t* mDevice;
+    sony_fingerprint_device_t *mDevice;
     uint64_t auth_challenge;
 };
 
