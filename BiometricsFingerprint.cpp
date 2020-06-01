@@ -125,7 +125,9 @@ Return<RequestStatus> BiometricsFingerprint::enroll(const hidl_array<uint8_t, 69
     ALOGI("%s : hat->timestamp %lu", __func__, (unsigned long)authToken->timestamp);
     ALOGI("%s : hat size %lu", __func__, (unsigned long)sizeof(hw_auth_token_t));
 
-    fpc_verify_auth_challenge(mDevice->fpc, (void *)authToken, sizeof(hw_auth_token_t));
+    int rc = fpc_verify_auth_challenge(mDevice->fpc, (void *)authToken, sizeof(hw_auth_token_t));
+    if (rc)
+        return ErrorFilter(rc);
 
     bool success = mWt.waitForState(AsyncState::Enroll);
     return success ? RequestStatus::SYS_OK : RequestStatus::SYS_EAGAIN;
@@ -134,7 +136,7 @@ Return<RequestStatus> BiometricsFingerprint::enroll(const hidl_array<uint8_t, 69
 Return<RequestStatus> BiometricsFingerprint::postEnroll() {
     ALOGI("%s: Resetting challenge", __func__);
     mDevice->challenge = 0;
-    return ErrorFilter(0);
+    return RequestStatus::SYS_OK;
 }
 
 Return<uint64_t> BiometricsFingerprint::getAuthenticatorId() {
@@ -167,28 +169,27 @@ Return<RequestStatus> BiometricsFingerprint::enumerate() {
     if (!mWt.Pause())
         return RequestStatus::SYS_EBUSY;
 
-    fpc_fingerprint_index_t print_indexs;
-    int rc = fpc_get_print_index(mDevice->fpc, &print_indexs);
+    fpc_fingerprint_index_t print_indices;
+    int rc = fpc_get_print_index(mDevice->fpc, &print_indices);
 
-    if (rc)
-        return ErrorFilter(rc);
+    if (!rc) {
+        if (!print_indices.print_count)
+            // When there are no fingers, the service still needs to know that (potentially async)
+            // enumeration has finished. By convention, send fid=0 and remaining=0 to signal this:
+            mClientCallback->onEnumerate(devId, 0, mDevice->gid, 0);
+        else
+            for (size_t i = 0; i < print_indices.print_count; i++) {
+                ALOGD("%s : found print : %lu at index %zu", __func__, (unsigned long)print_indices.prints[i], i);
 
-    if (!print_indexs.print_count)
-        // When there are no fingers, the service still needs to know that (potentially async)
-        // enumeration has finished. By convention, send fid=0 and remaining=0 to signal this:
-        mClientCallback->onEnumerate(devId, 0, mDevice->gid, 0);
-    else
-        for (size_t i = 0; i < print_indexs.print_count; i++) {
-            ALOGD("%s : found print : %lu at index %zu", __func__, (unsigned long)print_indexs.prints[i], i);
+                uint32_t remaining_templates = (uint32_t)(print_indices.print_count - i - 1);
 
-            uint32_t remaining_templates = (uint32_t)(print_indexs.print_count - i - 1);
-
-            mClientCallback->onEnumerate(devId, print_indexs.prints[i], mDevice->gid, remaining_templates);
-        }
+                mClientCallback->onEnumerate(devId, print_indices.prints[i], mDevice->gid, remaining_templates);
+            }
+    }
 
     mWt.Resume();
 
-    return ErrorFilter(0);
+    return ErrorFilter(rc);
 }
 
 Return<RequestStatus> BiometricsFingerprint::remove(uint32_t gid, uint32_t fid) {
@@ -196,29 +197,28 @@ Return<RequestStatus> BiometricsFingerprint::remove(uint32_t gid, uint32_t fid) 
 
     if (mClientCallback == nullptr) {
         ALOGE("Client callback not set");
-        return ErrorFilter(-1);
+        return RequestStatus::SYS_EINVAL;
     }
 
     if (!mWt.Pause())
         return RequestStatus::SYS_EBUSY;
 
-    Return<RequestStatus> ret = RequestStatus::SYS_OK;
+    ALOGV("Removing finger %u for gid %u", fid, gid);
 
-    if (fpc_del_print_id(mDevice->fpc, fid) == 0) {
+    int rc = fpc_del_print_id(mDevice->fpc, fid);
+    if (!rc) {
         mClientCallback->onRemoved(devId, fid, gid, 0);
 
         uint32_t db_length = fpc_get_user_db_length(mDevice->fpc);
         ALOGD("%s : User Database Length Is : %lu", __func__, (unsigned long)db_length);
-        fpc_store_user_db(mDevice->fpc, db_length, mDevice->db_path);
-        ret = ErrorFilter(0);
+        rc = fpc_store_user_db(mDevice->fpc, db_length, mDevice->db_path);
     } else {
         mClientCallback->onError(devId, FingerprintError::ERROR_UNABLE_TO_REMOVE, -1);
-        ret = ErrorFilter(-1);
     }
 
     mWt.Resume();
 
-    return ret;
+    return ErrorFilter(rc);
 }
 
 int BiometricsFingerprint::__setActiveGroup(uint32_t gid) {
