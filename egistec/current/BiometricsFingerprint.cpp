@@ -759,7 +759,7 @@ void BiometricsFingerprint::EnrollAsync() {
                     rc = mTrustlet.Calibrate();
                     ALOGE_IF(rc,
                              "%s: Failed to recalibrate sensor "
-                             "on FingerLost",
+                             "on FingerLost, rc = %d",
                              __func__, rc);
 
                     rc = mTrustlet.Enroll(finger_state, 0, enroll_result);
