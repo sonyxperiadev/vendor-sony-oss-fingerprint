@@ -266,8 +266,11 @@ int BiometricsFingerprint::__setActiveGroup(uint32_t gid) {
     // if user database was created in this instance, store it directly
     if (created_empty_db) {
         int length = fpc_get_user_db_length(mDevice->fpc);
-        fpc_store_user_db(mDevice->fpc, length, mDevice->db_path);
-        if ((result = fpc_load_user_db(mDevice->fpc, mDevice->db_path)) != 0) {
+        if ((result = fpc_store_user_db(mDevice->fpc, length, mDevice->db_path))) {
+            ALOGE("Failed to store empty user database: %d\n", result);
+            return result;
+        }
+        if ((result = fpc_load_user_db(mDevice->fpc, mDevice->db_path))) {
             ALOGE("Error loading empty user database: %d\n", result);
             return result;
         }
