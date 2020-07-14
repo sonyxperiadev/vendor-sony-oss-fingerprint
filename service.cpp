@@ -37,11 +37,11 @@ using CurrentEgistecHAL = ::egistec::current::BiometricsFingerprint;
 int main() {
     android::sp<IBiometricsFingerprint> bio;
 
-#if defined(USE_FPC_NILE) || defined(USE_FPC_GANGES) || defined(USE_FPC_KUMANO)
+#if defined(FINGERPRINT_TYPE_EGISTEC)
     ::egistec::EgisFpDevice dev;
 #endif
 
-#ifdef USE_FPC_NILE
+#if defined(HAS_LEGACY_EGISTEC)
     auto type = dev.GetHwId();
     bool is_old_hal;
 
@@ -72,7 +72,7 @@ int main() {
             ALOGE("No HAL instance defined for hardware type %d", type);
             return 1;
     }
-#elif defined(USE_FPC_GANGES) || defined(USE_FPC_KUMANO)
+#elif defined(FINGERPRINT_TYPE_EGISTEC)
     bio = new CurrentEgistecHAL(std::move(dev));
 #else
     bio = new FPCHAL();
