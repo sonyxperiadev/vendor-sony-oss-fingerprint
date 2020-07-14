@@ -496,7 +496,7 @@ void BiometricsFingerprint::IdleAsync() {
     int rc = 0;
     int which;
 
-    if (mHwId >= 0x600) {
+    if (mHwId >= 0x600 || mHwId == 0x37) {
         // 6xx does not support gestures.
         rc = mTrustlet.SetWorkMode(WorkMode::Sleep);
         LOG_ALWAYS_FATAL_IF(rc, "SetWorkMode(WorkMode::Sleep) failed with rc=%d", rc);
