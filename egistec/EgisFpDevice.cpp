@@ -66,7 +66,7 @@ int EgisFpDevice::GetFd() const {
     return mFd;
 }
 
-#ifdef USE_FPC_NILE
+#ifdef HAS_LEGACY_EGISTEC
 FpHwId EgisFpDevice::GetHwId() const {
     FpHwId id;
     int rc = ioctl(mFd, ET51X_IOCRHWTYPE, &id);

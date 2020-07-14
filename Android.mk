@@ -13,44 +13,52 @@ LOCAL_SRC_FILES := \
     ion_buffer.c \
     common.c
 
+# ---------------- FPC ----------------
 ifeq ($(filter-out loire tone,$(SOMC_PLATFORM)),)
 LOCAL_SRC_FILES += fpc_imp_loire_tone.c
 HAS_FPC := true
-LOCAL_CFLAGS += -DHAS_DYNAMIC_POWER_MANAGEMENT
 endif
 
 ifeq ($(filter-out yoshino,$(SOMC_PLATFORM)),)
 LOCAL_SRC_FILES += fpc_imp_yoshino_nile_tama.c
 HAS_FPC := true
 LOCAL_CFLAGS += \
-    -DUSE_FPC_YOSHINO \
-    -DHAS_DYNAMIC_POWER_MANAGEMENT
+    -DUSE_FPC_YOSHINO
 endif
 
 ifeq ($(filter-out nile,$(SOMC_PLATFORM)),)
+# NOTE: Nile can have either FPC or Egistec
 LOCAL_SRC_FILES += fpc_imp_yoshino_nile_tama.c
 HAS_FPC := true
 LOCAL_CFLAGS += \
     -DUSE_FPC_NILE \
-    -DHAS_DYNAMIC_POWER_MANAGEMENT
+    -DHAS_LEGACY_EGISTEC
 endif
 
 ifeq ($(filter-out tama,$(SOMC_PLATFORM)),)
 LOCAL_SRC_FILES += fpc_imp_yoshino_nile_tama.c
 HAS_FPC := true
 LOCAL_CFLAGS += \
-    -DUSE_FPC_TAMA \
-    -DHAS_DYNAMIC_POWER_MANAGEMENT
+    -DUSE_FPC_TAMA
 endif
 
-ifeq ($(filter-out ganges,$(SOMC_PLATFORM)),)
-LOCAL_CFLAGS += \
-    -DUSE_FPC_GANGES \
-    -DHAS_DYNAMIC_POWER_MANAGEMENT
+# ---------------- Egistec ----------------
+ifeq ($(filter-out nile ganges kumano,$(SOMC_PLATFORM)),)
+LOCAL_CFLAGS += -DFINGERPRINT_TYPE_EGISTEC
 endif
 
 ifeq ($(filter-out kumano,$(SOMC_PLATFORM)),)
-LOCAL_CFLAGS += -DUSE_FPC_KUMANO
+LOCAL_CFLAGS += \
+    -DEGIS_QSEE_APP_NAME=\"egista\" \
+    -DEGIS_QSEE_APP_PATH=\"/odm/firmware\"
+else
+LOCAL_CFLAGS += \
+    -DEGIS_QSEE_APP_NAME=\"egisap32\"
+endif
+
+# Define dynamic power management for everything but the following platforms:
+ifneq ($(filter-out kumano,$(SOMC_PLATFORM)),)
+LOCAL_CFLAGS += -DHAS_DYNAMIC_POWER_MANAGEMENT
 endif
 
 ifneq ($(HAS_FPC),true)

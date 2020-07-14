@@ -50,7 +50,7 @@ class EgisFpDevice {
 
     // TODO: Move/abstract this if we ever get more
     // platforms with multiple sensor types.
-#ifdef USE_FPC_NILE
+#ifdef HAS_LEGACY_EGISTEC
     /**
      * Retrieve hardware ID from the FPC driver.
      * Currently only has a meaning on the Nile platform,
