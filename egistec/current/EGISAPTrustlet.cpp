@@ -57,6 +57,13 @@ EGISAPTrustlet::EGISAPTrustlet() : QSEETrustlet(EGIS_QSEE_APP_NAME, 0x2400
                                    ) {
 }
 
+#define CAPTURE_ERROR(cmd)                                    \
+    ({                                                        \
+        int rc = cmd;                                         \
+        ALOGE_IF(rc, "%s failed with rc = %d", __func__, rc); \
+        rc;                                                   \
+    })
+
 int EGISAPTrustlet::SendCommand(EGISAPTrustlet::API &api) {
     // TODO: += !
     api.GetRequest().process = 0xe0;
@@ -170,7 +177,7 @@ EGISAPTrustlet::API EGISAPTrustlet::GetLockedAPI() {
 }
 
 int EGISAPTrustlet::Calibrate() {
-    return SendCommand(CommandId::Calibrate);
+    return CAPTURE_ERROR(SendCommand(CommandId::Calibrate));
 }
 
 /**
@@ -180,12 +187,9 @@ int EGISAPTrustlet::GetNavEvent(int &which) {
     TypedIonBuffer<int> keycode_buf;
 
     auto api = GetLockedAPI();
-    int rc = SendModifiedCommand(api, keycode_buf, CommandId::GetNavEvent, /* GID: */ 0);
-
-    if (rc) {
-        ALOGE("%s: rc=%d", __func__, rc);
+    int rc = CAPTURE_ERROR(SendModifiedCommand(api, keycode_buf, CommandId::GetNavEvent, /* GID: */ 0));
+    if (rc)
         return rc;
-    }
 
     LOG_ALWAYS_FATAL_IF(api.Base().extra_buffer_size != sizeof(which),
                         "%s: did not return exactly %zu bytes!",
@@ -199,45 +203,45 @@ int EGISAPTrustlet::GetNavEvent(int &which) {
 }
 
 int EGISAPTrustlet::InitializeAlgo() {
-    return SendCommand(CommandId::InitializeAlgo);
+    return CAPTURE_ERROR(SendCommand(CommandId::InitializeAlgo));
 }
 
 int EGISAPTrustlet::InitializeSensor() {
-    return SendCommand(CommandId::InitializeSensor);
+    return CAPTURE_ERROR(SendCommand(CommandId::InitializeSensor));
 }
 
 int EGISAPTrustlet::SetDataPath(const char *data_path) {
-    return SendDataCommand(CommandId::SetDataPath, data_path, strlen(data_path), 1);
+    return CAPTURE_ERROR(SendDataCommand(CommandId::SetDataPath, data_path, strlen(data_path), 1));
 }
 
 int EGISAPTrustlet::SetMasterKey(const MasterKey &key) {
-    return SendDataCommand(CommandId::SetMasterKey, key.data(), key.size());
+    return CAPTURE_ERROR(SendDataCommand(CommandId::SetMasterKey, key.data(), key.size()));
 }
 
 int EGISAPTrustlet::SetUserDataPath(uint32_t gid, const char *data_path) {
-    return SendDataCommand(CommandId::SetUserDataPath, data_path, strlen(data_path), gid);
+    return CAPTURE_ERROR(SendDataCommand(CommandId::SetUserDataPath, data_path, strlen(data_path), gid));
 }
 
 int EGISAPTrustlet::SetWorkMode(WorkMode workMode) {
     // WARNING: Work mode is passed in through gid!
-    return SendCommand(CommandId::SetWorkMode, (uint32_t)workMode);
+    return CAPTURE_ERROR(SendCommand(CommandId::SetWorkMode, (uint32_t)workMode));
 }
 
 int EGISAPTrustlet::UninitializeAlgo() {
-    return SendCommand(CommandId::UninitializeAlgo);
+    return CAPTURE_ERROR(SendCommand(CommandId::UninitializeAlgo));
 }
 
 int EGISAPTrustlet::UninitializeSdk() {
-    return SendCommand(CommandId::UninitializeSdk);
+    return CAPTURE_ERROR(SendCommand(CommandId::UninitializeSdk));
 }
 
 int EGISAPTrustlet::UninitializeSensor() {
-    return SendCommand(CommandId::UninitializeSensor);
+    return CAPTURE_ERROR(SendCommand(CommandId::UninitializeSensor));
 }
 
 uint32_t EGISAPTrustlet::GetHwId() {
     TypedIonBuffer<uint32_t> id;
-    int rc = SendModifiedCommand(id, CommandId::GetHwId);
+    int rc = CAPTURE_ERROR(SendModifiedCommand(id, CommandId::GetHwId));
     LOG_ALWAYS_FATAL_IF(rc, "Failed to get hardware ID!");
     return *id;
 }
@@ -246,7 +250,7 @@ uint64_t EGISAPTrustlet::GetAuthenticatorId() {
     TypedIonBuffer<uint64_t> id;
     auto api = GetLockedAPI();
 
-    int rc = SendModifiedCommand(api, id, CommandId::GetAuthenticatorId);
+    int rc = CAPTURE_ERROR(SendModifiedCommand(api, id, CommandId::GetAuthenticatorId));
     LOG_ALWAYS_FATAL_IF(rc, "Failed to get authenticator id!");
 
     // Nothing is returned when no prints are set up:
@@ -261,7 +265,7 @@ uint64_t EGISAPTrustlet::GetAuthenticatorId() {
 
 int EGISAPTrustlet::GetImage(ImageResult &quality) {
     TypedIonBuffer<ImageResult> ionBuffer;
-    int rc = SendModifiedCommand(ionBuffer, CommandId::GetImage);
+    int rc = CAPTURE_ERROR(SendModifiedCommand(ionBuffer, CommandId::GetImage));
     if (rc)
         return rc;
     quality = *ionBuffer;
@@ -272,7 +276,7 @@ int EGISAPTrustlet::GetImage(ImageResult &quality) {
 int EGISAPTrustlet::IsFingerLost(uint32_t timeout, ImageResult &status) {
     TypedIonBuffer<ImageResult> ionBuffer;
     // WARNING: timeout doesn't seem to change anything in terms of blocking.
-    int rc = SendModifiedCommand(ionBuffer, CommandId::IsFingerLost, timeout);
+    int rc = CAPTURE_ERROR(SendModifiedCommand(ionBuffer, CommandId::IsFingerLost, timeout));
     if (rc)
         return rc;
     status = *ionBuffer;
@@ -284,19 +288,19 @@ int EGISAPTrustlet::SetSpiState(uint32_t on) {
     int rc = 0;
     ALOGD("Setting SPI state to %d", on);
     if (on)
-        rc = SendCommand(CommandId::OpenSpi);
+        rc = CAPTURE_ERROR(SendCommand(CommandId::OpenSpi));
     else
-        rc = SendCommand(CommandId::CloseSpi);
-    ALOGE_IF(rc, "Failed to set SPI state to %d", rc);
+        rc = CAPTURE_ERROR(SendCommand(CommandId::CloseSpi));
+    ALOGE_IF(rc, "Failed to set SPI state to %d: %d", on, rc);
     return rc;
 }
 
 int EGISAPTrustlet::CheckAuthToken(const hw_auth_token_t &h) {
-    return SendDataCommand(CommandId::CheckAuthToken, &h, sizeof(h));
+    return CAPTURE_ERROR(SendDataCommand(CommandId::CheckAuthToken, &h, sizeof(h)));
 }
 
 int EGISAPTrustlet::CheckSecureId(uint32_t gid, uint64_t user_id) {
-    return SendDataCommand(CommandId::CheckSecureId, &user_id, sizeof(user_id), gid);
+    return CAPTURE_ERROR(SendDataCommand(CommandId::CheckSecureId, &user_id, sizeof(user_id), gid));
 }
 
 int EGISAPTrustlet::Enroll(uint32_t gid, uint32_t fid, enroll_result_t &result) {
@@ -304,7 +308,7 @@ int EGISAPTrustlet::Enroll(uint32_t gid, uint32_t fid, enroll_result_t &result) 
     api.GetRequest().fid = fid;
     TypedIonBuffer<enroll_result_t> ionBuffer;
 
-    int rc = SendModifiedCommand(api, ionBuffer, CommandId::Enroll, gid);
+    int rc = CAPTURE_ERROR(SendModifiedCommand(api, ionBuffer, CommandId::Enroll, gid));
     if (rc)
         return rc;
     memcpy(&result, ionBuffer(), sizeof(result));
@@ -346,17 +350,17 @@ int EGISAPTrustlet::GetNewPrintId(uint32_t gid, uint32_t &new_print_id) {
 }
 
 int EGISAPTrustlet::InitializeEnroll() {
-    return SendCommand(CommandId::InitializeEnroll);
+    return CAPTURE_ERROR(SendCommand(CommandId::InitializeEnroll));
 }
 
 int EGISAPTrustlet::SaveEnrolledPrint(uint32_t gid, uint64_t fid) {
     auto api = GetLockedAPI();
     api.GetRequest().fid = fid;
-    return SendCommand(api, CommandId::SaveEnrolledPrint, gid);
+    return CAPTURE_ERROR(SendCommand(api, CommandId::SaveEnrolledPrint, gid));
 }
 
 int EGISAPTrustlet::FinalizeEnroll() {
-    return SendCommand(CommandId::FinalizeEnroll);
+    return CAPTURE_ERROR(SendCommand(CommandId::FinalizeEnroll));
 }
 
 int EGISAPTrustlet::GetPrintIds(uint32_t gid, std::vector<uint32_t> &list) {
@@ -368,7 +372,7 @@ int EGISAPTrustlet::GetPrintIds(uint32_t gid, std::vector<uint32_t> &list) {
     TypedIonBuffer<print_ids_t> prints;
     auto api = GetLockedAPI();
 
-    int rc = SendModifiedCommand(api, prints, CommandId::GetPrintIds, gid);
+    int rc = CAPTURE_ERROR(SendModifiedCommand(api, prints, CommandId::GetPrintIds, gid));
     if (rc)
         return rc;
 
@@ -393,16 +397,16 @@ int EGISAPTrustlet::GetPrintIds(uint32_t gid, std::vector<uint32_t> &list) {
 int EGISAPTrustlet::RemovePrint(uint32_t gid, uint32_t fid) {
     auto api = GetLockedAPI();
     api.GetRequest().fid = fid;
-    return SendCommand(api, CommandId::RemovePrint, gid);
+    return CAPTURE_ERROR(SendCommand(api, CommandId::RemovePrint, gid));
 }
 
 int EGISAPTrustlet::FinalizeIdentify() {
-    return SendCommand(CommandId::FinalizeIdentify);
+    return CAPTURE_ERROR(SendCommand(CommandId::FinalizeIdentify));
 }
 
 int EGISAPTrustlet::GetEnrolledCount(uint32_t &cnt) {
     TypedIonBuffer<uint32_t> result;
-    int rc = SendModifiedCommand(result, CommandId::GetEnrolledCount);
+    int rc = CAPTURE_ERROR(SendModifiedCommand(result, CommandId::GetEnrolledCount));
     if (rc)
         return rc;
     cnt = *result;
@@ -424,7 +428,7 @@ int EGISAPTrustlet::Identify(uint32_t gid, uint64_t opid, identify_result_t &ide
 
     TypedIonBuffer<identify_result_t> ionBuffer;
 
-    int rc = SendModifiedCommand(api, ionBuffer, CommandId::Identify, gid);
+    int rc = CAPTURE_ERROR(SendModifiedCommand(api, ionBuffer, CommandId::Identify, gid));
     if (rc)
         return rc;
 
@@ -433,16 +437,16 @@ int EGISAPTrustlet::Identify(uint32_t gid, uint64_t opid, identify_result_t &ide
 }
 
 int EGISAPTrustlet::InitializeIdentify() {
-    return SendCommand(CommandId::InitializeIdentify);
+    return CAPTURE_ERROR(SendCommand(CommandId::InitializeIdentify));
 }
 
 int EGISAPTrustlet::SaveTemplate() {
-    return SendCommand(CommandId::SaveTemplate);
+    return CAPTURE_ERROR(SendCommand(CommandId::SaveTemplate));
 }
 
 int EGISAPTrustlet::UpdateTemplate(bool &updated) {
     TypedIonBuffer<bool> result;
-    int rc = SendModifiedCommand(result, CommandId::UpdateTemplate);
+    int rc = CAPTURE_ERROR(SendModifiedCommand(result, CommandId::UpdateTemplate));
     if (rc)
         return rc;
 
