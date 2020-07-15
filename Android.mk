@@ -49,6 +49,7 @@ endif
 
 ifeq ($(filter-out kumano seine,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += \
+    -DEGISTEC_SAVE_TEMPLATE_RETURNS_SIZE \
     -DEGIS_QSEE_APP_NAME=\"egista\" \
     -DEGIS_QSEE_APP_PATH=\"/odm/firmware\"
 else

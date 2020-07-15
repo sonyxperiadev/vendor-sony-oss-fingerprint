@@ -441,7 +441,17 @@ int EGISAPTrustlet::InitializeIdentify() {
 }
 
 int EGISAPTrustlet::SaveTemplate() {
+#ifdef EGISTEC_SAVE_TEMPLATE_RETURNS_SIZE
+    TypedIonBuffer<uint32_t> result;
+    int rc = CAPTURE_ERROR(SendModifiedCommand(result, CommandId::SaveTemplate));
+    if (rc)
+        return rc;
+
+    ALOGD("Template save size = %d", *result);
+    return 0;
+#else
     return CAPTURE_ERROR(SendCommand(CommandId::SaveTemplate));
+#endif
 }
 
 int EGISAPTrustlet::UpdateTemplate(bool &updated) {
