@@ -75,7 +75,6 @@ LOCAL_SHARED_LIBRARIES := \
     libdl \
     libhardware \
     libhidlbase \
-    libhidltransport \
     libion \
     liblog \
     libutils
