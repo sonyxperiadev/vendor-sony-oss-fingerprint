@@ -43,11 +43,11 @@ LOCAL_CFLAGS += \
 endif
 
 # ---------------- Egistec ----------------
-ifeq ($(filter-out nile ganges kumano seine,$(SOMC_PLATFORM)),)
+ifeq ($(filter-out nile ganges kumano seine edo,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += -DFINGERPRINT_TYPE_EGISTEC
 endif
 
-ifeq ($(filter-out kumano seine,$(SOMC_PLATFORM)),)
+ifeq ($(filter-out kumano seine edo,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += \
     -DEGISTEC_SAVE_TEMPLATE_RETURNS_SIZE \
     -DEGIS_QSEE_APP_NAME=\"egista\" \
@@ -58,7 +58,7 @@ LOCAL_CFLAGS += \
 endif
 
 # Define dynamic power management for everything but the following platforms:
-ifneq ($(filter-out kumano seine,$(SOMC_PLATFORM)),)
+ifneq ($(filter-out kumano seine edo,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += -DHAS_DYNAMIC_POWER_MANAGEMENT
 endif
 
