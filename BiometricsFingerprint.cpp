@@ -37,27 +37,21 @@ using ::android::hardware::biometrics::fingerprint::V2_1::FingerprintError;
 using ::android::hardware::biometrics::fingerprint::V2_1::RequestStatus;
 using namespace ::SynchronizedWorker;
 
-BiometricsFingerprint::BiometricsFingerprint() : mWt(this), mClientCallback(nullptr), mDevice(nullptr) {
-    fpc_imp_data_t *fpc_data = NULL;
-
-    mDevice = (sony_fingerprint_device_t *)malloc(sizeof(sony_fingerprint_device_t));
-    LOG_ALWAYS_FATAL_IF(!mDevice, "Failed to allocate sony_fingerprint_device_t");
-    memset(mDevice, 0, sizeof(sony_fingerprint_device_t));
-
-    if (fpc_init(&fpc_data, mWt.getEventFd()) < 0)
+BiometricsFingerprint::BiometricsFingerprint() : mWt(this) {
+    if (fpc_init(&fpc, mWt.getEventFd()) < 0)
         LOG_ALWAYS_FATAL("Could not init FPC device");
-    mDevice->fpc = fpc_data;
 
     mWt.Start();
 }
 
 BiometricsFingerprint::~BiometricsFingerprint() {
-    ALOGV("~BiometricsFingerprint()");
-    if (mDevice == nullptr) {
-        ALOGE("No valid device");
+    ALOGV(__func__);
+    if (fpc == nullptr) {
+        ALOGE("%s: No valid device", __func__);
         return;
     }
-    mDevice = nullptr;
+    mWt.Stop();
+    fpc_close(&fpc);
 }
 
 Return<RequestStatus> BiometricsFingerprint::ErrorFilter(int32_t error) {
@@ -100,13 +94,13 @@ Return<uint64_t> BiometricsFingerprint::setNotify(
     // unique token for its driver. Subsequent versions should send a unique
     // token for each call to setNotify(). This is fine as long as there's only
     // one fingerprint device on the platform.
-    return reinterpret_cast<uint64_t>(mDevice);
+    return reinterpret_cast<uint64_t>(this);
 }
 
 Return<uint64_t> BiometricsFingerprint::preEnroll() {
-    mDevice->challenge = fpc_load_auth_challenge(mDevice->fpc);
-    ALOGI("%s : Challenge is : %ju", __func__, mDevice->challenge);
-    return mDevice->challenge;
+    enroll_challenge = fpc_load_auth_challenge(fpc);
+    ALOGI("%s : Challenge is : %ju", __func__, enroll_challenge);
+    return enroll_challenge;
 }
 
 Return<RequestStatus> BiometricsFingerprint::enroll(const hidl_array<uint8_t, 69> &hat,
@@ -125,7 +119,7 @@ Return<RequestStatus> BiometricsFingerprint::enroll(const hidl_array<uint8_t, 69
     ALOGI("%s : hat->timestamp %lu", __func__, (unsigned long)authToken->timestamp);
     ALOGI("%s : hat size %lu", __func__, (unsigned long)sizeof(hw_auth_token_t));
 
-    int rc = fpc_verify_auth_challenge(mDevice->fpc, (void *)authToken, sizeof(hw_auth_token_t));
+    int rc = fpc_verify_auth_challenge(fpc, (void *)authToken, sizeof(hw_auth_token_t));
     if (rc)
         return ErrorFilter(rc);
 
@@ -135,12 +129,12 @@ Return<RequestStatus> BiometricsFingerprint::enroll(const hidl_array<uint8_t, 69
 
 Return<RequestStatus> BiometricsFingerprint::postEnroll() {
     ALOGI("%s: Resetting challenge", __func__);
-    mDevice->challenge = 0;
+    enroll_challenge = 0;
     return RequestStatus::SYS_OK;
 }
 
 Return<uint64_t> BiometricsFingerprint::getAuthenticatorId() {
-    uint64_t id = fpc_load_db_id(mDevice->fpc);
+    uint64_t id = fpc_load_db_id(fpc);
     ALOGI("%s : ID : %ju", __func__, id);
     return id;
 }
@@ -158,7 +152,7 @@ Return<RequestStatus> BiometricsFingerprint::cancel() {
 }
 
 Return<RequestStatus> BiometricsFingerprint::enumerate() {
-    const uint64_t devId = reinterpret_cast<uint64_t>(mDevice);
+    const uint64_t devId = reinterpret_cast<uint64_t>(this);
     if (mClientCallback == nullptr) {
         ALOGE("Client callback not set");
         return RequestStatus::SYS_EFAULT;
@@ -170,20 +164,20 @@ Return<RequestStatus> BiometricsFingerprint::enumerate() {
         return RequestStatus::SYS_EBUSY;
 
     fpc_fingerprint_index_t print_indices;
-    int rc = fpc_get_print_index(mDevice->fpc, &print_indices);
+    int rc = fpc_get_print_index(fpc, &print_indices);
 
     if (!rc) {
         if (!print_indices.print_count)
             // When there are no fingers, the service still needs to know that (potentially async)
             // enumeration has finished. By convention, send fid=0 and remaining=0 to signal this:
-            mClientCallback->onEnumerate(devId, 0, mDevice->gid, 0);
+            mClientCallback->onEnumerate(devId, 0, gid, 0);
         else
             for (size_t i = 0; i < print_indices.print_count; i++) {
                 ALOGD("%s : found print : %lu at index %zu", __func__, (unsigned long)print_indices.prints[i], i);
 
                 uint32_t remaining_templates = (uint32_t)(print_indices.print_count - i - 1);
 
-                mClientCallback->onEnumerate(devId, print_indices.prints[i], mDevice->gid, remaining_templates);
+                mClientCallback->onEnumerate(devId, print_indices.prints[i], gid, remaining_templates);
             }
     }
 
@@ -193,7 +187,7 @@ Return<RequestStatus> BiometricsFingerprint::enumerate() {
 }
 
 Return<RequestStatus> BiometricsFingerprint::remove(uint32_t gid, uint32_t fid) {
-    const uint64_t devId = reinterpret_cast<uint64_t>(mDevice);
+    const uint64_t devId = reinterpret_cast<uint64_t>(this);
 
     if (mClientCallback == nullptr) {
         ALOGE("Client callback not set");
@@ -210,19 +204,19 @@ Return<RequestStatus> BiometricsFingerprint::remove(uint32_t gid, uint32_t fid) 
         ALOGD("Deleting all fingerprints for gid %d", gid);
 
         fpc_fingerprint_index_t print_indices;
-        rc = fpc_get_print_index(mDevice->fpc, &print_indices);
+        rc = fpc_get_print_index(fpc, &print_indices);
         if (!rc)
             for (auto remaining = print_indices.print_count; remaining--;) {
                 auto fid = print_indices.prints[remaining];
                 ALOGD("Deleting print %d, %d remaining", fid, remaining);
-                rc = fpc_del_print_id(mDevice->fpc, fid);
+                rc = fpc_del_print_id(fpc, fid);
                 if (rc)
                     break;
                 mClientCallback->onRemoved(devId, fid, gid, remaining);
             }
     } else {
         ALOGD("Removing finger %u for gid %u", fid, gid);
-        rc = fpc_del_print_id(mDevice->fpc, fid);
+        rc = fpc_del_print_id(fpc, fid);
         if (!rc)
             mClientCallback->onRemoved(devId, fid, gid, 0);
     }
@@ -230,9 +224,9 @@ Return<RequestStatus> BiometricsFingerprint::remove(uint32_t gid, uint32_t fid) 
     if (rc) {
         mClientCallback->onError(devId, FingerprintError::ERROR_UNABLE_TO_REMOVE, 0);
     } else {
-        uint32_t db_length = fpc_get_user_db_length(mDevice->fpc);
+        uint32_t db_length = fpc_get_user_db_length(fpc);
         ALOGD("%s : User Database Length Is : %u", __func__, db_length);
-        rc = fpc_store_user_db(mDevice->fpc, db_length, mDevice->db_path);
+        rc = fpc_store_user_db(fpc, db_length, db_path);
     }
 
     mWt.Resume();
@@ -245,32 +239,32 @@ int BiometricsFingerprint::__setActiveGroup(uint32_t gid) {
     bool created_empty_db = false;
     struct stat sb;
 
-    if (stat(mDevice->db_path, &sb) == -1) {
+    if (stat(db_path, &sb) == -1) {
         // No existing database, load an empty one
-        if ((result = fpc_load_empty_db(mDevice->fpc)) != 0) {
+        if ((result = fpc_load_empty_db(fpc)) != 0) {
             ALOGE("Error creating empty user database: %d\n", result);
             return result;
         }
         created_empty_db = true;
     } else {
-        if ((result = fpc_load_user_db(mDevice->fpc, mDevice->db_path)) != 0) {
+        if ((result = fpc_load_user_db(fpc, db_path)) != 0) {
             ALOGE("Error loading existing user database: %d\n", result);
             return result;
         }
     }
 
-    if ((result = fpc_set_gid(mDevice->fpc, gid)) != 0) {
+    if ((result = fpc_set_gid(fpc, gid)) != 0) {
         ALOGE("Error setting current gid: %d\n", result);
     }
 
     // if user database was created in this instance, store it directly
     if (created_empty_db) {
-        int length = fpc_get_user_db_length(mDevice->fpc);
-        if ((result = fpc_store_user_db(mDevice->fpc, length, mDevice->db_path))) {
+        int length = fpc_get_user_db_length(fpc);
+        if ((result = fpc_store_user_db(fpc, length, db_path))) {
             ALOGE("Failed to store empty user database: %d\n", result);
             return result;
         }
-        if ((result = fpc_load_user_db(mDevice->fpc, mDevice->db_path))) {
+        if ((result = fpc_load_user_db(fpc, db_path))) {
             ALOGE("Error loading empty user database: %d\n", result);
             return result;
         }
@@ -290,10 +284,10 @@ Return<RequestStatus> BiometricsFingerprint::setActiveGroup(uint32_t gid,
         return RequestStatus::SYS_EINVAL;
     }
 
-    sprintf(mDevice->db_path, "%s/user.db", storePath.c_str());
-    mDevice->gid = gid;
+    sprintf(db_path, "%s/user.db", storePath.c_str());
+    this->gid = gid;
 
-    ALOGI("%s : storage path set to : %s", __func__, mDevice->db_path);
+    ALOGI("%s : storage path set to : %s", __func__, db_path);
 
     if (!mWt.Pause())
         return RequestStatus::SYS_EBUSY;
@@ -314,7 +308,7 @@ Return<RequestStatus> BiometricsFingerprint::authenticate(uint64_t operation_id,
     if (!mWt.Pause())
         return RequestStatus::SYS_EBUSY;
 
-    r = fpc_set_auth_challenge(mDevice->fpc, operation_id);
+    r = fpc_set_auth_challenge(fpc, operation_id);
     auth_challenge = operation_id;
     if (r < 0) {
         ALOGE("%s: Error setting auth challenge to %ju. r=0x%08X", __func__, operation_id, r);
@@ -329,7 +323,7 @@ void BiometricsFingerprint::IdleAsync() {
     ALOGD(__func__);
     int rc;
 
-    if (!fpc_navi_supported(mDevice->fpc)) {
+    if (!fpc_navi_supported(fpc)) {
         WorkHandler::IdleAsync();
         return;
     }
@@ -345,23 +339,23 @@ void BiometricsFingerprint::IdleAsync() {
 
     ALOGD("%s: Start gesture polling", __func__);
 
-    if (fpc_set_power(&mDevice->fpc->event, FPC_PWRON) < 0) {
+    if (fpc_set_power(&fpc->event, FPC_PWRON) < 0) {
         ALOGE("Error starting device");
         return;
     }
 
-    rc = fpc_navi_enter(mDevice->fpc);
+    rc = fpc_navi_enter(fpc);
     ALOGE_IF(rc, "Failed to enter navigation state: rc=%d", rc);
 
     if (!rc) {
-        rc = fpc_navi_poll(mDevice->fpc);
+        rc = fpc_navi_poll(fpc);
         ALOGE_IF(rc, "Failed to poll navigation: rc=%d", rc);
 
-        rc = fpc_navi_exit(mDevice->fpc);
+        rc = fpc_navi_exit(fpc);
         ALOGE_IF(rc, "Failed to exit navigation: rc=%d", rc);
     }
 
-    if (fpc_set_power(&mDevice->fpc->event, FPC_PWROFF) < 0)
+    if (fpc_set_power(&fpc->event, FPC_PWROFF) < 0)
         ALOGE("Error stopping device");
 }
 
@@ -370,7 +364,7 @@ void BiometricsFingerprint::EnrollAsync() {
     int32_t print_count = 0;
     // ALOGD("%s : print count is : %u", __func__, print_count);
 
-    const uint64_t devId = reinterpret_cast<uint64_t>(mDevice);
+    const uint64_t devId = reinterpret_cast<uint64_t>(this);
 
     std::lock_guard<std::mutex> lock(mClientCallbackMutex);
     if (mClientCallback == nullptr) {
@@ -378,20 +372,20 @@ void BiometricsFingerprint::EnrollAsync() {
         return;
     }
 
-    if (fpc_set_power(&mDevice->fpc->event, FPC_PWRON) < 0) {
+    if (fpc_set_power(&fpc->event, FPC_PWRON) < 0) {
         ALOGE("Error starting device");
         mClientCallback->onError(devId, FingerprintError::ERROR_UNABLE_TO_PROCESS, 0);
         return;
     }
 
-    int ret = fpc_enroll_start(mDevice->fpc, print_count);
+    int ret = fpc_enroll_start(fpc, print_count);
     if (ret < 0) {
         ALOGE("Starting enroll failed: %d\n", ret);
     }
 
     int status = 1;
 
-    while ((status = fpc_capture_image(mDevice->fpc)) >= 0) {
+    while ((status = fpc_capture_image(fpc)) >= 0) {
         ALOGD("%s : Got Input status=%d", __func__, status);
 
         if (mWt.isEventAvailable()) {
@@ -408,7 +402,7 @@ void BiometricsFingerprint::EnrollAsync() {
         if (status == FINGERPRINT_ACQUIRED_GOOD) {
             ALOGI("%s : Enroll Step", __func__);
             uint32_t remaining_touches = 0;
-            int ret = fpc_enroll_step(mDevice->fpc, &remaining_touches);
+            int ret = fpc_enroll_step(fpc, &remaining_touches);
             ALOGI("%s: step: %d, touches=%d\n", __func__, ret, remaining_touches);
             if (ret > 0) {
                 ALOGI("%s : Touches Remaining : %d", __func__, remaining_touches);
@@ -417,7 +411,7 @@ void BiometricsFingerprint::EnrollAsync() {
                 }
             } else if (ret == 0) {
                 uint32_t print_id = 0;
-                int print_index = fpc_enroll_end(mDevice->fpc, &print_id);
+                int print_index = fpc_enroll_end(fpc, &print_id);
 
                 if (print_index < 0) {
                     ALOGE("%s : Error getting new print index : %d", __func__, print_index);
@@ -425,11 +419,11 @@ void BiometricsFingerprint::EnrollAsync() {
                     break;
                 }
 
-                uint32_t db_length = fpc_get_user_db_length(mDevice->fpc);
+                uint32_t db_length = fpc_get_user_db_length(fpc);
                 ALOGI("%s : User Database Length Is : %lu", __func__, (unsigned long)db_length);
-                fpc_store_user_db(mDevice->fpc, db_length, mDevice->db_path);
+                fpc_store_user_db(fpc, db_length, db_path);
                 ALOGI("%s : Got print id : %lu", __func__, (unsigned long)print_id);
-                mClientCallback->onEnrollResult(devId, print_id, mDevice->gid, 0);
+                mClientCallback->onEnrollResult(devId, print_id, gid, 0);
                 break;
             } else {
                 ALOGE("Error in enroll step, aborting enroll: %d\n", ret);
@@ -439,7 +433,7 @@ void BiometricsFingerprint::EnrollAsync() {
         }
     }
 
-    if (fpc_set_power(&mDevice->fpc->event, FPC_PWROFF) < 0)
+    if (fpc_set_power(&fpc->event, FPC_PWROFF) < 0)
         ALOGE("Error stopping device");
 
     if (status < 0)
@@ -450,7 +444,7 @@ void BiometricsFingerprint::AuthenticateAsync() {
     int result;
     int status = 1;
 
-    const uint64_t devId = reinterpret_cast<uint64_t>(mDevice);
+    const uint64_t devId = reinterpret_cast<uint64_t>(this);
 
     std::lock_guard<std::mutex> lock(mClientCallbackMutex);
     if (mClientCallback == nullptr) {
@@ -458,15 +452,15 @@ void BiometricsFingerprint::AuthenticateAsync() {
         return;
     }
 
-    if (fpc_set_power(&mDevice->fpc->event, FPC_PWRON) < 0) {
+    if (fpc_set_power(&fpc->event, FPC_PWRON) < 0) {
         ALOGE("Error starting device");
         mClientCallback->onError(devId, FingerprintError::ERROR_UNABLE_TO_PROCESS, 0);
         return;
     }
 
-    fpc_auth_start(mDevice->fpc);
+    fpc_auth_start(fpc);
 
-    while ((status = fpc_capture_image(mDevice->fpc)) >= 0) {
+    while ((status = fpc_capture_image(fpc)) >= 0) {
         ALOGV("%s : Got Input with status %d", __func__, status);
 
         if (mWt.isEventAvailable()) {
@@ -481,23 +475,22 @@ void BiometricsFingerprint::AuthenticateAsync() {
 
         if (status == FINGERPRINT_ACQUIRED_GOOD) {
             uint32_t print_id = 0;
-            int verify_state = fpc_auth_step(mDevice->fpc, &print_id);
+            int verify_state = fpc_auth_step(fpc, &print_id);
             ALOGI("%s : Auth step = %d", __func__, verify_state);
 
             /* After getting something that ought to have been
              * recognizable: Either send proper notification, or
              * dummy one where fid=zero stands for unrecognized.
              */
-            uint32_t gid = mDevice->gid;
             uint32_t fid = 0;
 
             if (verify_state >= 0) {
-                result = fpc_update_template(mDevice->fpc);
+                result = fpc_update_template(fpc);
                 if (result < 0) {
                     ALOGE("Error updating template: %d", result);
                 } else if (result) {
                     ALOGI("Storing db");
-                    result = fpc_store_user_db(mDevice->fpc, 0, mDevice->db_path);
+                    result = fpc_store_user_db(fpc, 0, db_path);
                     if (result) ALOGE("Error storing database: %d", result);
                 }
 
@@ -506,7 +499,7 @@ void BiometricsFingerprint::AuthenticateAsync() {
                     ALOGI("%s : Got print id : %u", __func__, print_id);
 
                     if (auth_challenge) {
-                        fpc_get_hw_auth_obj(mDevice->fpc, &hat, sizeof(hw_auth_token_t));
+                        fpc_get_hw_auth_obj(fpc, &hat, sizeof(hw_auth_token_t));
 
                         ALOGW_IF(auth_challenge != hat.challenge,
                                  "Local auth challenge %ju does not match hat challenge %ju",
@@ -545,10 +538,10 @@ void BiometricsFingerprint::AuthenticateAsync() {
                  * Reinitialize the TZ app and parameters
                  * to clear the TZ error generated by flooding it
                  */
-                result = fpc_close(&mDevice->fpc);
+                result = fpc_close(&fpc);
                 LOG_ALWAYS_FATAL_IF(result < 0, "REINITIALIZE: Failed to close fpc: %d", result);
                 sleep(1);
-                result = fpc_init(&mDevice->fpc, mWt.getEventFd());
+                result = fpc_init(&fpc, mWt.getEventFd());
                 LOG_ALWAYS_FATAL_IF(result < 0, "REINITIALIZE: Failed to init fpc: %d", result);
 #ifdef USE_FPC_YOSHINO
                 int grp_err = __setActiveGroup(gid);
@@ -564,7 +557,7 @@ void BiometricsFingerprint::AuthenticateAsync() {
         }
     }
 
-    if (fpc_set_power(&mDevice->fpc->event, FPC_PWROFF) < 0)
+    if (fpc_set_power(&fpc->event, FPC_PWROFF) < 0)
         ALOGE("Error stopping device");
 
     if (status < 0)

@@ -43,13 +43,6 @@ using ::android::hardware::biometrics::fingerprint::V2_1::IBiometricsFingerprint
 using ::android::hardware::biometrics::fingerprint::V2_1::IBiometricsFingerprintClientCallback;
 using ::android::hardware::biometrics::fingerprint::V2_1::RequestStatus;
 
-typedef struct {
-    fpc_imp_data_t *fpc;
-    uint32_t gid;
-    char db_path[255];
-    uint64_t challenge;
-} sony_fingerprint_device_t;
-
 struct BiometricsFingerprint : public IBiometricsFingerprint, public ::SynchronizedWorker::WorkHandler {
    public:
     BiometricsFingerprint();
@@ -82,10 +75,12 @@ struct BiometricsFingerprint : public IBiometricsFingerprint, public ::Synchroni
     int __setActiveGroup(uint32_t gid);
 
     ::SynchronizedWorker::Thread mWt;
+    char db_path[255];
+    fpc_imp_data_t *fpc = NULL;
+    sp<IBiometricsFingerprintClientCallback> mClientCallback = NULL;
     std::mutex mClientCallbackMutex;
-    sp<IBiometricsFingerprintClientCallback> mClientCallback;
-    sony_fingerprint_device_t *mDevice;
-    uint64_t auth_challenge;
+    uint32_t gid;
+    uint64_t auth_challenge, enroll_challenge;
 };
 
 }  // namespace fpc
