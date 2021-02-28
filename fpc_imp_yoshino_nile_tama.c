@@ -721,13 +721,6 @@ err_t fpc_get_print_index(fpc_imp_data_t *data, fpc_fingerprint_index_t *idx_dat
     return 0;
 }
 
-
-err_t fpc_get_user_db_length(fpc_imp_data_t __unused *data)
-{
-    ALOGV(__func__);
-    return 0;
-}
-
 err_t fpc_load_empty_db(fpc_imp_data_t *data) {
     err_t result;
     fpc_data_t *ldata = (fpc_data_t*)data;
@@ -770,7 +763,7 @@ err_t fpc_set_gid(fpc_imp_data_t *data, uint32_t gid)
     return result;
 }
 
-err_t fpc_store_user_db(fpc_imp_data_t *data, uint32_t __unused length, char* path)
+err_t fpc_store_user_db(fpc_imp_data_t *data, char* path)
 {
     ALOGV(__func__);
     fpc_data_t *ldata = (fpc_data_t*)data;

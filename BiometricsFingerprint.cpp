@@ -224,9 +224,7 @@ Return<RequestStatus> BiometricsFingerprint::remove(uint32_t gid, uint32_t fid) 
     if (rc) {
         mClientCallback->onError(devId, FingerprintError::ERROR_UNABLE_TO_REMOVE, 0);
     } else {
-        uint32_t db_length = fpc_get_user_db_length(fpc);
-        ALOGD("%s : User Database Length Is : %u", __func__, db_length);
-        rc = fpc_store_user_db(fpc, db_length, db_path);
+        rc = fpc_store_user_db(fpc, db_path);
     }
 
     mWt.Resume();
@@ -259,8 +257,7 @@ int BiometricsFingerprint::__setActiveGroup(uint32_t gid) {
 
     // if user database was created in this instance, store it directly
     if (created_empty_db) {
-        int length = fpc_get_user_db_length(fpc);
-        if ((result = fpc_store_user_db(fpc, length, db_path))) {
+        if ((result = fpc_store_user_db(fpc, db_path))) {
             ALOGE("Failed to store empty user database: %d\n", result);
             return result;
         }
@@ -419,9 +416,7 @@ void BiometricsFingerprint::EnrollAsync() {
                     break;
                 }
 
-                uint32_t db_length = fpc_get_user_db_length(fpc);
-                ALOGI("%s : User Database Length Is : %lu", __func__, (unsigned long)db_length);
-                fpc_store_user_db(fpc, db_length, db_path);
+                fpc_store_user_db(fpc, db_path);
                 ALOGI("%s : Got print id : %lu", __func__, (unsigned long)print_id);
                 mClientCallback->onEnrollResult(devId, print_id, gid, 0);
                 break;
@@ -490,7 +485,7 @@ void BiometricsFingerprint::AuthenticateAsync() {
                     ALOGE("Error updating template: %d", result);
                 } else if (result) {
                     ALOGI("Storing db");
-                    result = fpc_store_user_db(fpc, 0, db_path);
+                    result = fpc_store_user_db(fpc, db_path);
                     if (result) ALOGE("Error storing database: %d", result);
                 }
 
