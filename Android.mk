@@ -43,7 +43,7 @@ LOCAL_CFLAGS += \
 endif
 
 # ---------------- Egistec ----------------
-ifeq ($(filter-out nile ganges kumano seine edo,$(SOMC_PLATFORM)),)
+ifeq ($(filter-out nile ganges kumano seine edo lena,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += -DFINGERPRINT_TYPE_EGISTEC
 endif
 
