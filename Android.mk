@@ -58,7 +58,7 @@ LOCAL_CFLAGS += \
 endif
 
 # Define dynamic power management for everything but the following platforms:
-ifneq ($(filter-out kumano seine edo,$(SOMC_PLATFORM)),)
+ifneq ($(filter-out kumano seine,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += -DHAS_DYNAMIC_POWER_MANAGEMENT
 endif
 
