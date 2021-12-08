@@ -43,11 +43,11 @@ LOCAL_CFLAGS += \
 endif
 
 # ---------------- Egistec ----------------
-ifeq ($(filter-out nile ganges kumano seine edo lena,$(SOMC_PLATFORM)),)
+ifeq ($(filter-out nile ganges kumano seine edo lena sagami,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += -DFINGERPRINT_TYPE_EGISTEC
 endif
 
-ifeq ($(filter-out kumano seine edo,$(SOMC_PLATFORM)),)
+ifeq ($(filter-out kumano seine edo sagami,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += \
     -DEGISTEC_SAVE_TEMPLATE_RETURNS_SIZE \
     -DEGIS_QSEE_APP_NAME=\"egista\" \
