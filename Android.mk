@@ -43,7 +43,7 @@ LOCAL_CFLAGS += \
 endif
 
 # ---------------- Egistec ----------------
-ifneq ($(filter-out loire tone yoshino nile tama,$(SOMC_PLATFORM)),)
+ifneq ($(filter-out loire tone yoshino tama,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += -DFINGERPRINT_TYPE_EGISTEC
 endif
 
