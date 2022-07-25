@@ -56,6 +56,11 @@ else ifeq ($(filter-out lena,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += \
     -DEGISTEC_SAVE_TEMPLATE_RETURNS_SIZE \
     -DEGIS_QSEE_APP_NAME=\"egista\"
+else ifeq ($(filter-out nagara,$(SOMC_PLATFORM)),)
+LOCAL_CFLAGS += \
+    -DEGISTEC_SAVE_TEMPLATE_RETURNS_SIZE \
+    -DEGIS_QSEE_APP_PATH=\"/odm/firmware\"
+    -DEGIS_QSEE_APP_NAME=\"egista64\"
 else
 LOCAL_CFLAGS += \
     -DEGIS_QSEE_APP_NAME=\"egisap32\"
