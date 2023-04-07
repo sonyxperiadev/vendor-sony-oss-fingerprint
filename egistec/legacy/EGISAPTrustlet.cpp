@@ -14,7 +14,7 @@ void log_hex(const char *data, int length) {
     if (length <= 0 || data == NULL)
         return;
 
-    // Trim leading nullsi, 4 bytes at a time:
+    // Trim leading nulls, 4 bytes at a time:
     int cnt = 0;
     for (; length > 0 && !*(const uint32_t *)data; cnt++, data += 4, length -= 4)
         ;

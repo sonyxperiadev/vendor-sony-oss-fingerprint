@@ -22,10 +22,6 @@ IonBuffer &IonBuffer::operator=(IonBuffer &&other) {
     return *new (this) IonBuffer(std::move(other));
 }
 
-size_t IonBuffer::size() const {
-    return ion_info.sbuf_len;
-}
-
 size_t IonBuffer::requestedSize() const {
     return ion_info.req_len;
 }
