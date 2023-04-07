@@ -4,14 +4,14 @@
 
 #pragma once
 
+#include "../../EventMultiplexer.h"
+#include "../../SynchronizedWorkerThread.h"
+#include "../EgisFpDevice.h"
 #include "EGISAPTrustlet.h"
 #include "QSEEKeymasterTrustlet.h"
 #include "UInput.h"
 
-#include <EventMultiplexer.h>
-#include <SynchronizedWorkerThread.h>
 #include <android/hardware/biometrics/fingerprint/2.1/IBiometricsFingerprint.h>
-#include <egistec/EgisFpDevice.h>
 
 #include <array>
 

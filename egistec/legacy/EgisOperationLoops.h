@@ -1,11 +1,11 @@
 #pragma once
 
+#include "../../EventMultiplexer.h"
+#include "../../SynchronizedWorkerThread.h"
+#include "../EgisFpDevice.h"
 #include "EGISAPTrustlet.h"
 
-#include <EventMultiplexer.h>
-#include <SynchronizedWorkerThread.h>
 #include <android/hardware/biometrics/fingerprint/2.1/IBiometricsFingerprintClientCallback.h>
-#include <egistec/EgisFpDevice.h>
 #include <sys/eventfd.h>
 
 #include <mutex>
