@@ -4,11 +4,10 @@
 
 #include <stdint.h>
 // WARNING: Must include stdint before msm_ion, or it'll miss the size_t definition!
-#include <linux/msm_ion.h>
-
 #include <errno.h>
 #include <fcntl.h>
 #include <ion/ion.h>
+#include <linux/msm_ion.h>
 #include <string.h>
 #include <sys/cdefs.h>
 #include <sys/ioctl.h>

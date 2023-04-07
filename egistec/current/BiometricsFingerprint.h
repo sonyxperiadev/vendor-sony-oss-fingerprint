@@ -70,7 +70,7 @@ struct BiometricsFingerprint : public IBiometricsFingerprint, public ::Synchroni
     void EnrollAsync() override;
     void IdleAsync() override;
 
-    int  ResetSensor();
+    int ResetSensor();
     void NotifyAcquired(FingerprintAcquiredInfo);
     void NotifyAuthenticated(uint32_t fid, const hw_auth_token_t &hat);
     void NotifyEnrollResult(uint32_t fid, uint32_t remaining);

@@ -1,8 +1,10 @@
 #pragma once
 
-#include <inttypes.h>
-#include <mutex>
 #include "QSEEComAPI.h"
+
+#include <inttypes.h>
+
+#include <mutex>
 
 class QSEETrustlet {
    public:

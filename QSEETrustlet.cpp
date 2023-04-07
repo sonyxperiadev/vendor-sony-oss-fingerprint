@@ -1,10 +1,12 @@
 #include "QSEETrustlet.h"
 
+#include "FormatException.hpp"
+
 #include <dlfcn.h>
 #include <errno.h>
 #include <string.h>
+
 #include <algorithm>
-#include "FormatException.hpp"
 
 #define LOG_TAG "FPC QSEETrustlet"
 // #define LOG_NDEBUG 0

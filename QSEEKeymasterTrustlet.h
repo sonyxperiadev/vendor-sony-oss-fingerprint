@@ -1,8 +1,8 @@
 #pragma once
 
-#include <array>
-
 #include "QSEETrustlet.h"
+
+#include <array>
 
 #define QSEE_KEYMASTER64_MASTER_KEY_SIZE 0x98
 

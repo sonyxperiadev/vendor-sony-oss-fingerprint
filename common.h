@@ -3,15 +3,15 @@
 
 #include <stdint.h>
 
-#define FPC_IOC_MAGIC	0x1145
-#define FPC_IOCWPREPARE	_IOW(FPC_IOC_MAGIC, 0x01, int)
+#define FPC_IOC_MAGIC 0x1145
+#define FPC_IOCWPREPARE _IOW(FPC_IOC_MAGIC, 0x01, int)
 #define FPC_IOCWDEVWAKE _IOW(FPC_IOC_MAGIC, 0x02, int)
-#define FPC_IOCWRESET	_IOW(FPC_IOC_MAGIC, 0x03, int)
-#define FPC_IOCWAWAKE	_IOW(FPC_IOC_MAGIC, 0x04, int)
+#define FPC_IOCWRESET _IOW(FPC_IOC_MAGIC, 0x03, int)
+#define FPC_IOCWAWAKE _IOW(FPC_IOC_MAGIC, 0x04, int)
 #define FPC_IOCRPREPARE _IOR(FPC_IOC_MAGIC, 0x81, int)
 #define FPC_IOCRDEVWAKE _IOR(FPC_IOC_MAGIC, 0x82, int)
-#define FPC_IOCRIRQ	_IOR(FPC_IOC_MAGIC, 0x83, int)
-#define FPC_IOCRIRQPOLL	_IOR(FPC_IOC_MAGIC, 0x84, int)
+#define FPC_IOCRIRQ _IOR(FPC_IOC_MAGIC, 0x83, int)
+#define FPC_IOCRIRQPOLL _IOR(FPC_IOC_MAGIC, 0x84, int)
 
 enum {
     FPC_PWROFF = 0,
@@ -53,4 +53,4 @@ err_t is_event_available(const fpc_event_t *event);
  */
 err_t fpc_keep_awake(const fpc_event_t *event, int awake, unsigned int timeout);
 
-#endif //FINGERPRINT_COMMON_H
+#endif  // FINGERPRINT_COMMON_H

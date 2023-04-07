@@ -395,7 +395,7 @@ void BiometricsFingerprint::EnrollAsync() {
         if (hidlStatus <= FingerprintAcquiredInfo::ACQUIRED_TOO_FAST)
             mClientCallback->onAcquired(devId, hidlStatus, 0);
 
-        //image captured
+        // image captured
         if (status == FINGERPRINT_ACQUIRED_GOOD) {
             ALOGI("%s : Enroll Step", __func__);
             uint32_t remaining_touches = 0;
