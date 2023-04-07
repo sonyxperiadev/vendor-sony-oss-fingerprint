@@ -14,14 +14,11 @@ class IonBuffer {
     IonBuffer(IonBuffer &) = delete;
     const IonBuffer &operator=(const IonBuffer &) = delete;
 
-    size_t size() const;
     size_t requestedSize() const;
     int fd() const;
 
     void *operator()();
     const void *operator()() const;
-
-    static IonBuffer Wrap(int fd, ion_user_handle_t handle, void *buffer);
 };
 
 template <typename T>

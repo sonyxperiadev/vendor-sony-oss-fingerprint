@@ -53,7 +53,7 @@ int32_t qcom_km_ion_dealloc(struct qcom_km_ion_info_t *handle) {
 
     if (handle->ion_sbuffer) {
         rc = munmap(handle->ion_sbuffer, handle->sbuf_len);
-        LOG_ALWAYS_FATAL_IF(rc, "Failed to munmap ION buffer");
+        LOG_ALWAYS_FATAL_IF(rc, "Failed to unmap ION buffer");
         handle->ion_sbuffer = NULL;
     }
 
