@@ -1,4 +1,5 @@
 #include "common.h"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -16,8 +17,7 @@
 
 #define EVENT_COUNT 2
 
-err_t fpc_event_create(fpc_event_t *event, int event_fd)
-{
+err_t fpc_event_create(fpc_event_t *event, int event_fd) {
     int fd = 0, rc;
 
     event->event_fd = event_fd;
@@ -59,8 +59,7 @@ err_t fpc_event_create(fpc_event_t *event, int event_fd)
     return 0;
 }
 
-err_t fpc_event_destroy(fpc_event_t *event)
-{
+err_t fpc_event_destroy(fpc_event_t *event) {
     event->event_fd = -1;
     close(event->dev_fd);
     event->dev_fd = -1;
@@ -69,8 +68,7 @@ err_t fpc_event_destroy(fpc_event_t *event)
     return 0;
 }
 
-err_t fpc_set_power(const fpc_event_t *event, int poweron)
-{
+err_t fpc_set_power(const fpc_event_t *event, int poweron) {
     int ret = -1;
 
     ret = ioctl(event->dev_fd, FPC_IOCWPREPARE, poweron);
@@ -82,8 +80,7 @@ err_t fpc_set_power(const fpc_event_t *event, int poweron)
     return 1;
 }
 
-err_t fpc_get_power(const fpc_event_t *event)
-{
+err_t fpc_get_power(const fpc_event_t *event) {
     int ret = -1;
     uint32_t reply = -1;
 
@@ -99,8 +96,7 @@ err_t fpc_get_power(const fpc_event_t *event)
     return reply;
 }
 
-err_t fpc_poll_event(const fpc_event_t *event)
-{
+err_t fpc_poll_event(const fpc_event_t *event) {
     int cnt;
 
     struct epoll_event events[EVENT_COUNT];
@@ -132,8 +128,7 @@ err_t fpc_poll_event(const fpc_event_t *event)
  *
  * Does not return true on (spurious) hardware/irq raise.
  */
-err_t is_event_available(const fpc_event_t *event)
-{
+err_t is_event_available(const fpc_event_t *event) {
     int cnt;
 
     struct pollfd pfd = {
@@ -152,8 +147,7 @@ err_t is_event_available(const fpc_event_t *event)
     return cnt > 0;
 }
 
-err_t fpc_keep_awake(const fpc_event_t *event, int awake, unsigned int timeout)
-{
+err_t fpc_keep_awake(const fpc_event_t *event, int awake, unsigned int timeout) {
     struct {
         int awake;
         unsigned int timeout;

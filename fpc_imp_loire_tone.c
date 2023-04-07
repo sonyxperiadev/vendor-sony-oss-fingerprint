@@ -16,37 +16,33 @@
 
 #include "QSEEComAPI.h"
 #include "QSEEComFunc.h"
+#include "common.h"
 #include "fpc_imp.h"
-
 #include "tz_api_loire_tone.h"
 
-#include "common.h"
-
-#include <string.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 
 #define LOG_TAG "FPC IMP"
-//#define LOG_NDEBUG 0
+// #define LOG_NDEBUG 0
 
-#include <log/log.h>
 #include <limits.h>
+#include <log/log.h>
 
 typedef struct {
     struct fpc_imp_data_t data;
     struct QSEECom_handle *fpc_handle;
-    struct qsee_handle_t* qsee_handle;
+    struct qsee_handle_t *qsee_handle;
     struct qcom_km_ion_info_t ihandle;
     uint64_t auth_id;
 } fpc_data_t;
 
-static const char *fpc_error_str(int err)
-{
+static const char *fpc_error_str(int err) {
     int realerror = err + 10;
 
-    switch(realerror)
-    {
+    switch (realerror) {
         case 0:
             return "FPC_ERROR_CONFIG";
         case 1:
@@ -72,44 +68,38 @@ static const char *fpc_error_str(int err)
     }
 }
 
-
-err_t send_modified_command_to_tz(fpc_data_t *ldata, struct qcom_km_ion_info_t ihandle)
-{
+err_t send_modified_command_to_tz(fpc_data_t *ldata, struct qcom_km_ion_info_t ihandle) {
     struct QSEECom_handle *handle = ldata->fpc_handle;
 
-    fpc_send_mod_cmd_t* send_cmd = (fpc_send_mod_cmd_t*) handle->ion_sbuffer;
+    fpc_send_mod_cmd_t *send_cmd = (fpc_send_mod_cmd_t *)handle->ion_sbuffer;
     void *rec_cmd = handle->ion_sbuffer + TZ_RESPONSE_OFFSET;
-    struct QSEECom_ion_fd_info  ion_fd_info;
+    struct QSEECom_ion_fd_info ion_fd_info;
 
     memset(&ion_fd_info, 0, sizeof(struct QSEECom_ion_fd_info));
 
     ion_fd_info.data[0].fd = ihandle.ifd_data_fd;
     ion_fd_info.data[0].cmd_buf_offset = 4;
 
-    send_cmd->v_addr = (intptr_t) ihandle.ion_sbuffer;
+    send_cmd->v_addr = (intptr_t)ihandle.ion_sbuffer;
     uint32_t length = (ihandle.sbuf_len + 4095) & (~4095);
     send_cmd->length = length;
-    int result = ldata->qsee_handle->send_modified_cmd(handle,send_cmd,64,rec_cmd,64,&ion_fd_info);
+    int result = ldata->qsee_handle->send_modified_cmd(handle, send_cmd, 64, rec_cmd, 64, &ion_fd_info);
 
-    if(result)
-    {
+    if (result) {
         ALOGE("Error sending modified command: %d\n", result);
         return -1;
     }
-    if((result = *(int32_t*)rec_cmd) != 0)
-    {
+    if ((result = *(int32_t *)rec_cmd) != 0) {
         ALOGE("Error in tz command (%d) : %s\n", result, fpc_error_str(result));
         return -2;
     }
 
-
     return result;
 }
 
-err_t send_normal_command(fpc_data_t *ldata, int command)
-{
-    fpc_send_std_cmd_t* send_cmd =
-        (fpc_send_std_cmd_t*) ldata->ihandle.ion_sbuffer;
+err_t send_normal_command(fpc_data_t *ldata, int command) {
+    fpc_send_std_cmd_t *send_cmd =
+        (fpc_send_std_cmd_t *)ldata->ihandle.ion_sbuffer;
 
     send_cmd->group_id = 0x1;
     send_cmd->cmd_id = command;
@@ -117,28 +107,27 @@ err_t send_normal_command(fpc_data_t *ldata, int command)
 
     int ret = send_modified_command_to_tz(ldata, ldata->ihandle);
 
-    if(!ret) {
+    if (!ret) {
         ret = send_cmd->ret_val;
     }
 
     return ret;
 }
 
-err_t send_buffer_command(fpc_data_t *ldata, uint32_t group_id, uint32_t cmd_id, const uint8_t *buffer, uint32_t length)
-{
+err_t send_buffer_command(fpc_data_t *ldata, uint32_t group_id, uint32_t cmd_id, const uint8_t *buffer, uint32_t length) {
     struct qcom_km_ion_info_t ihandle;
-    if (ldata->qsee_handle->ion_alloc(&ihandle, length + sizeof(fpc_send_buffer_t)) <0) {
+    if (ldata->qsee_handle->ion_alloc(&ihandle, length + sizeof(fpc_send_buffer_t)) < 0) {
         ALOGE("ION allocation  failed");
         return -1;
     }
-    fpc_send_buffer_t *cmd_data = (fpc_send_buffer_t*)ihandle.ion_sbuffer;
+    fpc_send_buffer_t *cmd_data = (fpc_send_buffer_t *)ihandle.ion_sbuffer;
     memset(ihandle.ion_sbuffer, 0, length + sizeof(fpc_send_buffer_t));
     cmd_data->group_id = group_id;
     cmd_data->cmd_id = cmd_id;
     cmd_data->length = length;
     memcpy(&cmd_data->data, buffer, length);
 
-    if(send_modified_command_to_tz(ldata, ihandle) < 0) {
+    if (send_modified_command_to_tz(ldata, ihandle) < 0) {
         ALOGE("Error sending data to tz\n");
         return -1;
     }
@@ -148,21 +137,19 @@ err_t send_buffer_command(fpc_data_t *ldata, uint32_t group_id, uint32_t cmd_id,
     return result;
 }
 
-
-err_t send_command_result_buffer(fpc_data_t *ldata, uint32_t group_id, uint32_t cmd_id, uint8_t *buffer, uint32_t length)
-{
+err_t send_command_result_buffer(fpc_data_t *ldata, uint32_t group_id, uint32_t cmd_id, uint8_t *buffer, uint32_t length) {
     struct qcom_km_ion_info_t ihandle;
-    if (ldata->qsee_handle->ion_alloc(&ihandle, length + sizeof(fpc_send_buffer_t)) <0) {
+    if (ldata->qsee_handle->ion_alloc(&ihandle, length + sizeof(fpc_send_buffer_t)) < 0) {
         ALOGE("ION allocation  failed");
         return -1;
     }
-    fpc_send_buffer_t *keydata_cmd = (fpc_send_buffer_t*)ihandle.ion_sbuffer;
+    fpc_send_buffer_t *keydata_cmd = (fpc_send_buffer_t *)ihandle.ion_sbuffer;
     memset(ihandle.ion_sbuffer, 0, length + sizeof(fpc_send_buffer_t));
     keydata_cmd->group_id = group_id;
     keydata_cmd->cmd_id = cmd_id;
     keydata_cmd->length = length;
 
-    if(send_modified_command_to_tz(ldata, ihandle) < 0) {
+    if (send_modified_command_to_tz(ldata, ihandle) < 0) {
         ALOGE("Error sending data to tz\n");
         return -1;
     }
@@ -173,19 +160,18 @@ err_t send_command_result_buffer(fpc_data_t *ldata, uint32_t group_id, uint32_t 
     return result;
 }
 
-err_t send_custom_cmd(fpc_data_t *ldata, void *buffer, uint32_t len)
-{
+err_t send_custom_cmd(fpc_data_t *ldata, void *buffer, uint32_t len) {
     ALOGV(__func__);
     struct qcom_km_ion_info_t ihandle;
 
-    if (ldata->qsee_handle->ion_alloc(&ihandle, len) <0) {
+    if (ldata->qsee_handle->ion_alloc(&ihandle, len) < 0) {
         ALOGE("ION allocation  failed");
         return -1;
     }
 
     memcpy(ihandle.ion_sbuffer, buffer, len);
 
-    if(send_modified_command_to_tz(ldata, ihandle) < 0) {
+    if (send_modified_command_to_tz(ldata, ihandle) < 0) {
         ALOGE("Error sending data to tz\n");
         return -1;
     }
@@ -197,11 +183,9 @@ err_t send_custom_cmd(fpc_data_t *ldata, void *buffer, uint32_t len)
     return 0;
 };
 
-
-err_t fpc_set_auth_challenge(fpc_imp_data_t *data, int64_t challenge)
-{
+err_t fpc_set_auth_challenge(fpc_imp_data_t *data, int64_t challenge) {
     ALOGV(__func__);
-    fpc_data_t *ldata = (fpc_data_t*)data;
+    fpc_data_t *ldata = (fpc_data_t *)data;
 
     fpc_send_auth_cmd_t auth_cmd = {
         .group_id = FPC_GROUP_FPCDATA,
@@ -209,7 +193,7 @@ err_t fpc_set_auth_challenge(fpc_imp_data_t *data, int64_t challenge)
         .challenge = challenge,
     };
 
-    if(send_custom_cmd(ldata, &auth_cmd, sizeof(auth_cmd)) < 0) {
+    if (send_custom_cmd(ldata, &auth_cmd, sizeof(auth_cmd)) < 0) {
         ALOGE("Error sending data to tz\n");
         return -1;
     }
@@ -218,34 +202,32 @@ err_t fpc_set_auth_challenge(fpc_imp_data_t *data, int64_t challenge)
     return auth_cmd.status;
 }
 
-int64_t fpc_load_auth_challenge(fpc_imp_data_t *data)
-{
+int64_t fpc_load_auth_challenge(fpc_imp_data_t *data) {
     ALOGV(__func__);
-    fpc_data_t *ldata = (fpc_data_t*)data;
+    fpc_data_t *ldata = (fpc_data_t *)data;
     fpc_load_auth_challenge_t cmd = {
         .group_id = FPC_GROUP_FPCDATA,
         .cmd_id = FPC_GET_AUTH_CHALLENGE,
     };
 
-    if(send_custom_cmd(ldata, &cmd, sizeof(cmd)) < 0) {
+    if (send_custom_cmd(ldata, &cmd, sizeof(cmd)) < 0) {
         ALOGE("Error sending data to tz\n");
         return -1;
     }
 
-    if(cmd.status != 0) {
+    if (cmd.status != 0) {
         ALOGE("Bad status getting auth challenge: %d\n", cmd.status);
         return -2;
     }
     return cmd.challenge;
 }
 
-int64_t fpc_load_db_id(fpc_imp_data_t *data)
-{
+int64_t fpc_load_db_id(fpc_imp_data_t *data) {
     ALOGV(__func__);
-    fpc_data_t *ldata = (fpc_data_t*)data;
+    fpc_data_t *ldata = (fpc_data_t *)data;
 
     // return cached auth_id value if available
-    if(ldata->auth_id) {
+    if (ldata->auth_id) {
         return ldata->auth_id;
     }
     fpc_get_db_id_cmd_t cmd = {
@@ -253,7 +235,7 @@ int64_t fpc_load_db_id(fpc_imp_data_t *data)
         .cmd_id = FPC_GET_TEMPLATE_ID,
     };
 
-    if(send_custom_cmd(ldata, &cmd, sizeof(cmd)) < 0) {
+    if (send_custom_cmd(ldata, &cmd, sizeof(cmd)) < 0) {
         ALOGE("Error sending data to TZ\n");
         return -1;
     }
@@ -262,49 +244,43 @@ int64_t fpc_load_db_id(fpc_imp_data_t *data)
     return cmd.auth_id;
 }
 
-err_t fpc_get_hw_auth_obj(fpc_imp_data_t *data, void * buffer, uint32_t length)
-{
+err_t fpc_get_hw_auth_obj(fpc_imp_data_t *data, void *buffer, uint32_t length) {
     ALOGV(__func__);
-    fpc_data_t *ldata = (fpc_data_t*)data;
+    fpc_data_t *ldata = (fpc_data_t *)data;
     fpc_get_auth_result_t cmd = {
         .group_id = FPC_GROUP_FPCDATA,
         .cmd_id = FPC_GET_AUTH_RESULT,
         .length = AUTH_RESULT_LENGTH,
     };
 
-    if(send_custom_cmd(ldata, &cmd, sizeof(cmd)) < 0) {
+    if (send_custom_cmd(ldata, &cmd, sizeof(cmd)) < 0) {
         ALOGE("Error sending data to tz\n");
         return -1;
     }
-    if(length != AUTH_RESULT_LENGTH)
-    {
+    if (length != AUTH_RESULT_LENGTH) {
         ALOGE("Weird inconsistency between auth length!???\n");
     }
-    if(cmd.result != 0)
-    {
+    if (cmd.result != 0) {
         ALOGE("Get hw_auth_obj failed: %d\n", cmd.result);
         return cmd.result;
     }
 
     memcpy(buffer, cmd.auth_result, length);
 
-  return 0;
+    return 0;
 }
 
-err_t fpc_verify_auth_challenge(fpc_imp_data_t *data, void* hat, uint32_t size)
-{
+err_t fpc_verify_auth_challenge(fpc_imp_data_t *data, void *hat, uint32_t size) {
     ALOGV(__func__);
-    fpc_data_t *ldata = (fpc_data_t*)data;
+    fpc_data_t *ldata = (fpc_data_t *)data;
     int ret = send_buffer_command(ldata, FPC_GROUP_FPCDATA, FPC_AUTHORIZE_ENROL, hat, size);
     ALOGI("verify auth challenge: %d\n", ret);
     return ret;
 }
 
-
-err_t fpc_del_print_id(fpc_imp_data_t *data, uint32_t id)
-{
+err_t fpc_del_print_id(fpc_imp_data_t *data, uint32_t id) {
     ALOGV(__func__);
-    fpc_data_t *ldata = (fpc_data_t*)data;
+    fpc_data_t *ldata = (fpc_data_t *)data;
 
     fpc_fingerprint_delete_t cmd = {
         .group_id = FPC_GROUP_NORMAL,
@@ -313,8 +289,7 @@ err_t fpc_del_print_id(fpc_imp_data_t *data, uint32_t id)
     };
 
     int ret = send_custom_cmd(ldata, &cmd, sizeof(cmd));
-    if(ret < 0)
-    {
+    if (ret < 0) {
         ALOGE("Error sending command: %d\n", ret);
         return -1;
     }
@@ -328,10 +303,9 @@ err_t fpc_del_print_id(fpc_imp_data_t *data, uint32_t id)
  * Returns 0 when an object is still touching the sensor
  * Returns a negative value on error
  */
-err_t fpc_wait_finger_lost(fpc_imp_data_t *data)
-{
+err_t fpc_wait_finger_lost(fpc_imp_data_t *data) {
     ALOGV(__func__);
-    fpc_data_t *ldata = (fpc_data_t*)data;
+    fpc_data_t *ldata = (fpc_data_t *)data;
     int result;
 
     result = send_normal_command(ldata, FPC_WAIT_FINGER_LOST);
@@ -344,44 +318,40 @@ err_t fpc_wait_finger_lost(fpc_imp_data_t *data)
  * Returns 0 when an event occurs (and the operation has to be stopped)
  * Returns a negative value on error
  */
-err_t fpc_wait_finger_down(fpc_imp_data_t *data)
-{
+err_t fpc_wait_finger_down(fpc_imp_data_t *data) {
     ALOGV(__func__);
     int result = -1;
-    fpc_data_t *ldata = (fpc_data_t*)data;
+    fpc_data_t *ldata = (fpc_data_t *)data;
 
     result = send_normal_command(ldata, FPC_WAIT_FINGER_DOWN);
     ALOGE_IF(result, "Wait finger down result: %d", result);
-    if(result)
+    if (result)
         return result;
 
     result = fpc_poll_event(&data->event);
 
-    if(result == FPC_EVENT_ERROR)
+    if (result == FPC_EVENT_ERROR)
         return -1;
     return result == FPC_EVENT_FINGER;
 }
 
 // Attempt to capture image
-err_t fpc_capture_image(fpc_imp_data_t *data)
-{
+err_t fpc_capture_image(fpc_imp_data_t *data) {
     ALOGV(__func__);
 
-    fpc_data_t *ldata = (fpc_data_t*)data;
+    fpc_data_t *ldata = (fpc_data_t *)data;
 
     int ret = fpc_wait_finger_lost(data);
     ALOGV("fpc_wait_finger_lost = 0x%08X", ret);
-    if(ret < 0)
+    if (ret < 0)
         return ret;
-    if(ret)
-    {
+    if (ret) {
         ALOGV("Finger lost as expected");
         ret = fpc_wait_finger_down(data);
         ALOGV("fpc_wait_finger_down = 0x%08X", ret);
-        if(ret < 0)
+        if (ret < 0)
             return ret;
-        if(ret)
-        {
+        if (ret) {
             ALOGD("Finger down, capturing image");
             ret = send_normal_command(ldata, FPC_CAPTURE_IMAGE);
             ALOGD("Image capture result: %d", ret);
@@ -401,46 +371,39 @@ err_t fpc_capture_image(fpc_imp_data_t *data)
     return ret;
 }
 
-bool fpc_navi_supported(fpc_imp_data_t __unused *data)
-{
+bool fpc_navi_supported(fpc_imp_data_t __unused *data) {
     return false;
 }
 
-err_t fpc_navi_enter(fpc_imp_data_t __unused *data)
-{
+err_t fpc_navi_enter(fpc_imp_data_t __unused *data) {
     ALOGV(__func__);
     return -ENOSYS;
 }
 
-err_t fpc_navi_exit(fpc_imp_data_t __unused *data)
-{
+err_t fpc_navi_exit(fpc_imp_data_t __unused *data) {
     ALOGV(__func__);
     return -ENOSYS;
 }
 
-err_t fpc_navi_poll(fpc_imp_data_t __unused *data)
-{
+err_t fpc_navi_poll(fpc_imp_data_t __unused *data) {
     ALOGV(__func__);
     return -ENOSYS;
 }
 
-err_t fpc_enroll_step(fpc_imp_data_t *data, uint32_t *remaining_touches)
-{
+err_t fpc_enroll_step(fpc_imp_data_t *data, uint32_t *remaining_touches) {
     ALOGV(__func__);
-    fpc_data_t *ldata = (fpc_data_t*)data;
+    fpc_data_t *ldata = (fpc_data_t *)data;
     fpc_enrol_step_t cmd = {
         .group_id = FPC_GROUP_NORMAL,
         .cmd_id = FPC_ENROL_STEP,
     };
 
     int ret = send_custom_cmd(ldata, &cmd, sizeof(cmd));
-    if(ret <0)
-    {
+    if (ret < 0) {
         ALOGE("Error sending command: %d\n", ret);
         return -1;
     }
-    if(cmd.status < 0)
-    {
+    if (cmd.status < 0) {
         ALOGE("Error processing enroll step: %d\n", cmd.status);
         return -1;
     }
@@ -448,32 +411,30 @@ err_t fpc_enroll_step(fpc_imp_data_t *data, uint32_t *remaining_touches)
     return cmd.status;
 }
 
-err_t fpc_enroll_start(fpc_imp_data_t * data, int __unused print_index)
-{
+err_t fpc_enroll_start(fpc_imp_data_t *data, int __unused print_index) {
     ALOGV(__func__);
-    fpc_data_t *ldata = (fpc_data_t*)data;
+    fpc_data_t *ldata = (fpc_data_t *)data;
     int ret = send_normal_command(ldata, FPC_BEGIN_ENROL);
-    if(ret < 0) {
+    if (ret < 0) {
         ALOGE("Error beginning enrol: %d\n", ret);
         return -1;
     }
     return ret;
 }
 
-err_t fpc_enroll_end(fpc_imp_data_t *data, uint32_t *print_id)
-{
+err_t fpc_enroll_end(fpc_imp_data_t *data, uint32_t *print_id) {
     ALOGV(__func__);
-    fpc_data_t *ldata = (fpc_data_t*)data;
+    fpc_data_t *ldata = (fpc_data_t *)data;
     fpc_end_enrol_t cmd = {
         .group_id = FPC_GROUP_NORMAL,
         .cmd_id = FPC_END_ENROL,
     };
 
-    if(send_custom_cmd(ldata, &cmd, sizeof(cmd)) < 0) {
+    if (send_custom_cmd(ldata, &cmd, sizeof(cmd)) < 0) {
         ALOGE("Error sending enrol command\n");
         return -1;
     }
-    if(cmd.status != 0) {
+    if (cmd.status != 0) {
         ALOGE("Error processing end enrol: %d\n", cmd.status);
         return -2;
     }
@@ -484,15 +445,12 @@ err_t fpc_enroll_end(fpc_imp_data_t *data, uint32_t *print_id)
     return 0;
 }
 
-
-err_t fpc_auth_start(fpc_imp_data_t __unused  *data)
-{
+err_t fpc_auth_start(fpc_imp_data_t __unused *data) {
     ALOGV(__func__);
     return 0;
 }
 
-err_t fpc_auth_step(fpc_imp_data_t *data, uint32_t *print_id)
-{
+err_t fpc_auth_step(fpc_imp_data_t *data, uint32_t *print_id) {
     fpc_data_t *ldata = (fpc_data_t *)data;
     fpc_send_identify_t identify_cmd = {
         .commandgroup = FPC_GROUP_NORMAL,
@@ -514,22 +472,19 @@ err_t fpc_auth_step(fpc_imp_data_t *data, uint32_t *print_id)
     return identify_cmd.status;
 }
 
-err_t fpc_auth_end(fpc_imp_data_t __unused *data)
-{
+err_t fpc_auth_end(fpc_imp_data_t __unused *data) {
     ALOGV(__func__);
     return 0;
 }
 
-err_t fpc_update_template(fpc_imp_data_t __unused *data)
-{
+err_t fpc_update_template(fpc_imp_data_t __unused *data) {
     // TODO: Implement for loire/tone
     return 1;
 }
 
-err_t fpc_get_print_index(fpc_imp_data_t *data, fpc_fingerprint_index_t *idx_data)
-{
+err_t fpc_get_print_index(fpc_imp_data_t *data, fpc_fingerprint_index_t *idx_data) {
     ALOGV(__func__);
-    fpc_data_t *ldata = (fpc_data_t*)data;
+    fpc_data_t *ldata = (fpc_data_t *)data;
     fpc_fingerprint_list_t cmd = {
         .group_id = FPC_GROUP_NORMAL,
         .cmd_id = FPC_GET_FINGERPRINTS,
@@ -538,7 +493,7 @@ err_t fpc_get_print_index(fpc_imp_data_t *data, fpc_fingerprint_index_t *idx_dat
     unsigned int i;
 
     int ret = send_custom_cmd(ldata, &cmd, sizeof(cmd));
-    if(ret < 0 || cmd.status != 0) {
+    if (ret < 0 || cmd.status != 0) {
         ALOGE("Failed to retrieve fingerprints: rc = %d, status = %d", ret, cmd.status);
         return -EINVAL;
     } else if (cmd.length > MAX_FINGERPRINTS) {
@@ -548,7 +503,7 @@ err_t fpc_get_print_index(fpc_imp_data_t *data, fpc_fingerprint_index_t *idx_dat
 
     ALOGI("Found %d fingerprints", cmd.length);
     idx_data->print_count = cmd.length;
-    for(i = 0; i < cmd.length; i++)
+    for (i = 0; i < cmd.length; i++)
         idx_data->prints[i] = cmd.fingerprints[i];
 
     return 0;
@@ -556,32 +511,28 @@ err_t fpc_get_print_index(fpc_imp_data_t *data, fpc_fingerprint_index_t *idx_dat
 
 err_t fpc_load_empty_db(fpc_imp_data_t *data) {
     err_t result;
-    fpc_data_t *ldata = (fpc_data_t*)data;
+    fpc_data_t *ldata = (fpc_data_t *)data;
 
     result = send_normal_command(ldata, FPC_LOAD_EMPTY_DB);
-    if(result)
-    {
+    if (result) {
         ALOGE("Error creating new empty database: %d\n", result);
         return result;
     }
     return 0;
 }
 
-
-err_t fpc_load_user_db(fpc_imp_data_t *data, char* path)
-{
+err_t fpc_load_user_db(fpc_imp_data_t *data, char *path) {
     int result;
-    fpc_data_t *ldata = (fpc_data_t*)data;
+    fpc_data_t *ldata = (fpc_data_t *)data;
 
     ALOGD("Loading user db from %s\n", path);
-    result = send_buffer_command(ldata, FPC_GROUP_DB, FPC_LOAD_DB, (const uint8_t*)path, (uint32_t)strlen(path)+1);
+    result = send_buffer_command(ldata, FPC_GROUP_DB, FPC_LOAD_DB, (const uint8_t *)path, (uint32_t)strlen(path) + 1);
     return result;
 }
 
-err_t fpc_set_gid(fpc_imp_data_t *data, uint32_t gid)
-{
+err_t fpc_set_gid(fpc_imp_data_t *data, uint32_t gid) {
     int result;
-    fpc_data_t *ldata = (fpc_data_t*)data;
+    fpc_data_t *ldata = (fpc_data_t *)data;
     fpc_set_gid_t cmd = {
         .group_id = FPC_GROUP_NORMAL,
         .cmd_id = FPC_SET_GID,
@@ -590,36 +541,32 @@ err_t fpc_set_gid(fpc_imp_data_t *data, uint32_t gid)
 
     ALOGD("Setting GID to %d\n", gid);
     result = send_custom_cmd(ldata, &cmd, sizeof(cmd));
-    if(!result)
+    if (!result)
         result = cmd.status;
 
     return result;
 }
 
-err_t fpc_store_user_db(fpc_imp_data_t *data, char* path)
-{
+err_t fpc_store_user_db(fpc_imp_data_t *data, char *path) {
     ALOGV(__func__);
-    fpc_data_t *ldata = (fpc_data_t*)data;
+    fpc_data_t *ldata = (fpc_data_t *)data;
     char temp_path[PATH_MAX];
     snprintf(temp_path, PATH_MAX - 1, "%s.tmp", path);
-    int ret = send_buffer_command(ldata, FPC_GROUP_DB, FPC_STORE_DB, (const uint8_t*)temp_path, (uint32_t)strlen(temp_path)+1);
-    if(ret < 0)
-    {
+    int ret = send_buffer_command(ldata, FPC_GROUP_DB, FPC_STORE_DB, (const uint8_t *)temp_path, (uint32_t)strlen(temp_path) + 1);
+    if (ret < 0) {
         ALOGE("storing database failed: %d\n", ret);
         return ret;
     }
-    if(rename(temp_path, path) != 0)
-    {
+    if (rename(temp_path, path) != 0) {
         ALOGE("Renaming temporary db from %s to %s failed: %d\n", temp_path, path, errno);
         return -2;
     }
     return ret;
 }
 
-err_t fpc_close(fpc_imp_data_t **data)
-{
+err_t fpc_close(fpc_imp_data_t **data) {
     ALOGV(__func__);
-    fpc_data_t *ldata = (fpc_data_t*)*data;
+    fpc_data_t *ldata = (fpc_data_t *)*data;
 
     ldata->qsee_handle->shutdown_app(&ldata->fpc_handle);
     if (fpc_set_power(&(*data)->event, FPC_PWROFF) < 0) {
@@ -636,21 +583,20 @@ err_t fpc_close(fpc_imp_data_t **data)
     return 1;
 }
 
-err_t fpc_init(fpc_imp_data_t **data, int event_fd)
-{
-    int ret=0;
+err_t fpc_init(fpc_imp_data_t **data, int event_fd) {
+    int ret = 0;
 
-    struct QSEECom_handle * mFPC_handle = NULL;
-    struct QSEECom_handle * mKeymasterHandle = NULL;
-    struct qsee_handle_t* qsee_handle = NULL;
+    struct QSEECom_handle *mFPC_handle = NULL;
+    struct QSEECom_handle *mKeymasterHandle = NULL;
+    struct qsee_handle_t *qsee_handle = NULL;
 
     ALOGI("INIT FPC TZ APP\n");
-    if(qsee_open_handle(&qsee_handle) != 0) {
+    if (qsee_open_handle(&qsee_handle) != 0) {
         ALOGE("Error loading QSEECom library");
         goto err;
     }
 
-    fpc_data_t *fpc_data = (fpc_data_t*)malloc(sizeof(fpc_data_t));
+    fpc_data_t *fpc_data = (fpc_data_t *)malloc(sizeof(fpc_data_t));
     fpc_data->auth_id = 0;
 
     fpc_event_create(&fpc_data->data.event, event_fd);
@@ -669,7 +615,6 @@ err_t fpc_init(fpc_imp_data_t **data, int event_fd)
         }
     }
     fpc_data->qsee_handle = qsee_handle;
-
 
     ALOGI("Starting app %s\n", FP_TZAPP_NAME);
     if (qsee_handle->load_trustlet(qsee_handle, &mFPC_handle, FP_TZAPP_PATH, FP_TZAPP_NAME, 128) < 0) {
@@ -691,25 +636,25 @@ err_t fpc_init(fpc_imp_data_t **data, int event_fd)
     }
 
     // Start creating one off command to get cert from keymaster
-    keymaster_cmd_t *req = (keymaster_cmd_t *) mKeymasterHandle->ion_sbuffer;
+    keymaster_cmd_t *req = (keymaster_cmd_t *)mKeymasterHandle->ion_sbuffer;
     req->cmd_id = 0x205;
     req->ret_val = 0x02;
 
-    uint8_t * send_buf = mKeymasterHandle->ion_sbuffer;
-    uint8_t * rec_buf = mKeymasterHandle->ion_sbuffer + 64;
+    uint8_t *send_buf = mKeymasterHandle->ion_sbuffer;
+    uint8_t *rec_buf = mKeymasterHandle->ion_sbuffer + 64;
 
-    //Send command to keymaster
-    if (qsee_handle->send_cmd(mKeymasterHandle, send_buf, 64, rec_buf, 1024-64) < 0) {
+    // Send command to keymaster
+    if (qsee_handle->send_cmd(mKeymasterHandle, send_buf, 64, rec_buf, 1024 - 64) < 0) {
         goto err_keymaster;
     }
 
-    keymaster_return_t* ret_data = (keymaster_return_t*) rec_buf;
+    keymaster_return_t *ret_data = (keymaster_return_t *)rec_buf;
 
     ALOGI("Keymaster Response Code : %u\n", ret_data->status);
     ALOGI("Keymaster Response Length : %u\n", ret_data->length);
     ALOGI("Keymaster Response Offset: %u\n", ret_data->offset);
 
-    void * data_buff = &rec_buf[ret_data->offset];
+    void *data_buff = &rec_buf[ret_data->offset];
 
     void *keydata = malloc(ret_data->length);
     int keylength = ret_data->length;
@@ -721,7 +666,7 @@ err_t fpc_init(fpc_imp_data_t **data, int event_fd)
     int result = send_buffer_command(fpc_data, FPC_GROUP_FPCDATA, FPC_SET_KEY_DATA, keydata, keylength);
 
     ALOGD("FPC_SET_KEY_DATA Result: %d\n", result);
-    if(result != 0)
+    if (result != 0)
         return result;
 
     if (fpc_set_power(&fpc_data->data.event, FPC_PWROFF) < 0) {
@@ -729,15 +674,15 @@ err_t fpc_init(fpc_imp_data_t **data, int event_fd)
         goto err_alloc;
     }
 
-    *data = (fpc_imp_data_t*)fpc_data;
+    *data = (fpc_imp_data_t *)fpc_data;
 
     return 1;
 
 err_keymaster:
-    if(mKeymasterHandle != NULL)
+    if (mKeymasterHandle != NULL)
         qsee_handle->shutdown_app(&mKeymasterHandle);
 err_alloc:
-    if(fpc_data != NULL) {
+    if (fpc_data != NULL) {
         fpc_data->qsee_handle->ion_free(&fpc_data->ihandle);
         free(fpc_data);
     }
