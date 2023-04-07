@@ -17,17 +17,16 @@
 #ifndef __QSEECOMAPI_H_
 #define __QSEECOMAPI_H_
 
-
 /*----------------------------------------------------------------------------
  * Include Files
-* -------------------------------------------------------------------------*/
-#include <stdint.h>
+ * -------------------------------------------------------------------------*/
 #include <stdbool.h>
+#include <stdint.h>
 
-#define QSEECOM_ALIGN_SIZE	0x40
-#define QSEECOM_ALIGN_MASK	(QSEECOM_ALIGN_SIZE - 1)
-#define QSEECOM_ALIGN(x)	\
-	((x + QSEECOM_ALIGN_SIZE) & (~QSEECOM_ALIGN_MASK))
+#define QSEECOM_ALIGN_SIZE 0x40
+#define QSEECOM_ALIGN_MASK (QSEECOM_ALIGN_SIZE - 1)
+#define QSEECOM_ALIGN(x) \
+    ((x + QSEECOM_ALIGN_SIZE) & (~QSEECOM_ALIGN_MASK))
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,31 +36,31 @@ extern "C" {
  * Preprocessor Definitions and Constants
  * -------------------------------------------------------------------------*/
 /** The memory is locked and non-pageable */
-#define MEM_LOCKED         0x00000001
+#define MEM_LOCKED 0x00000001
 /** The memory is marked non-cacheable */
-#define MEM_NON_CACHED     0x00000002
+#define MEM_NON_CACHED 0x00000002
 
-#define QSEECOM_APP_QUERY_FAILED       -6
-#define QSEECOM_APP_NOT_LOADED         -5
-#define QSEECOM_APP_ALREADY_LOADED     -4
-#define QSEECOM_LISTENER_UNREGISTERED	-3
-#define QSEECOM_LISTENER_ALREADY_REGISTERED	-2
-#define QSEECOM_LISTENER_REGISTER_FAIL		-1
+#define QSEECOM_APP_QUERY_FAILED -6
+#define QSEECOM_APP_NOT_LOADED -5
+#define QSEECOM_APP_ALREADY_LOADED -4
+#define QSEECOM_LISTENER_UNREGISTERED -3
+#define QSEECOM_LISTENER_ALREADY_REGISTERED -2
+#define QSEECOM_LISTENER_REGISTER_FAIL -1
 
 /*----------------------------------------------------------------------------
  * Type Declarations
  * -------------------------------------------------------------------------*/
 struct QSEECom_handle {
-	unsigned char *ion_sbuffer;
+    unsigned char *ion_sbuffer;
 };
 
 struct QSEECom_ion_fd_data {
-	int32_t fd;
-	uint32_t cmd_buf_offset;
+    int32_t fd;
+    uint32_t cmd_buf_offset;
 };
 
 struct QSEECom_ion_fd_info {
-	struct QSEECom_ion_fd_data data[4];
+    struct QSEECom_ion_fd_data data[4];
 };
 
 /*----------------------------------------------------------------------------
@@ -93,7 +92,7 @@ struct QSEECom_ion_fd_info {
  *  error.
  */
 int QSEECom_start_app(struct QSEECom_handle **clnt_handle, const char *path,
-			const char *fname, uint32_t sb_size);
+                      const char *fname, uint32_t sb_size);
 
 /**
  * @brief Close the application associated with the handle.
@@ -124,7 +123,7 @@ int QSEECom_shutdown_app(struct QSEECom_handle **handle);
  *  error.
  */
 int QSEECom_load_external_elf(struct QSEECom_handle **clnt_handle, const char *path,
-			const char *fname);
+                              const char *fname);
 
 /**
  * @brief Close the external elf
@@ -153,7 +152,7 @@ int QSEECom_unload_external_elf(struct QSEECom_handle **handle);
  *
  */
 int QSEECom_register_listener(struct QSEECom_handle **handle,
-			uint32_t lstnr_id, uint32_t sb_length, uint32_t flags);
+                              uint32_t lstnr_id, uint32_t sb_length, uint32_t flags);
 
 /**
  * @brief Unregister a listener service.
@@ -164,7 +163,6 @@ int QSEECom_register_listener(struct QSEECom_handle **handle,
  *  error.
  */
 int QSEECom_unregister_listener(struct QSEECom_handle *handle);
-
 
 /**
  * @brief Send QSAPP a "user" defined buffer (may contain some message/
@@ -191,8 +189,7 @@ int QSEECom_unregister_listener(struct QSEECom_handle *handle);
  *  error.
  */
 int QSEECom_send_cmd(struct QSEECom_handle *handle, void *send_buf,
-			uint32_t sbuf_len, void *rcv_buf, uint32_t rbuf_len);
-
+                     uint32_t sbuf_len, void *rcv_buf, uint32_t rbuf_len);
 
 /**
  * @brief Send QSAPP a "user" defined buffer (may contain some message/
@@ -226,8 +223,8 @@ int QSEECom_send_cmd(struct QSEECom_handle *handle, void *send_buf,
  *  error.
  */
 int QSEECom_send_modified_cmd(struct QSEECom_handle *handle, void *send_buf,
-			uint32_t sbuf_len, void *resp_buf, uint32_t rbuf_len,
-			struct QSEECom_ion_fd_info  *ifd_data);
+                              uint32_t sbuf_len, void *resp_buf, uint32_t rbuf_len,
+                              struct QSEECom_ion_fd_info *ifd_data);
 
 /**
  * @brief Receive a service defined buffer.
@@ -240,7 +237,7 @@ int QSEECom_send_modified_cmd(struct QSEECom_handle *handle, void *send_buf,
  *  error.
  */
 int QSEECom_receive_req(struct QSEECom_handle *handle,
-			void *buf, uint32_t len);
+                        void *buf, uint32_t len);
 
 /**
  * @brief Send a response based on the previous QSEECom_receive_req.
@@ -259,7 +256,7 @@ int QSEECom_receive_req(struct QSEECom_handle *handle,
  *  error.
  */
 int QSEECom_send_resp(struct QSEECom_handle *handle,
-			void *send_buf, uint32_t len);
+                      void *send_buf, uint32_t len);
 
 /**
  * @brief Set the bandwidth for QSEE.

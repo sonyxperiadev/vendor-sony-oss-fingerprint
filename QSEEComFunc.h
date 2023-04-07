@@ -17,37 +17,36 @@
 #ifndef __QSEECOMFUNC_H_
 #define __QSEECOMFUNC_H_
 
-#include <dlfcn.h>
-#include <stdio.h>
-#include <linux/ioctl.h>
-#include <sys/ioctl.h>
-#include <sys/mman.h>
-#include <fcntl.h> // open function
-#include <unistd.h> // close function
 #include "QSEEComAPI.h"
 #include "ion_buffer.h"
+
+#include <dlfcn.h>
+#include <fcntl.h>  // open function
+#include <linux/ioctl.h>
+#include <stdio.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <unistd.h>  // close function
 
 // Forward declarations
 struct qsee_handle_t;
 
-
 // QCOM library functions
 typedef int (*start_app_def)(struct QSEECom_handle **clnt_handle, const char *path, const char *fname, uint32_t sb_size);
 typedef int (*shutdown_app_def)(struct QSEECom_handle **clnt_handle);
-typedef int (*load_external_elf_def)(struct QSEECom_handle **clnt_handle, const char *path,  const char *fname);
+typedef int (*load_external_elf_def)(struct QSEECom_handle **clnt_handle, const char *path, const char *fname);
 typedef int (*unload_external_elf_def)(struct QSEECom_handle **handle);
 typedef int (*register_listener_def)(struct QSEECom_handle **handle, uint32_t lstnr_id, uint32_t sb_length, uint32_t flags);
 typedef int (*unregister_listener_def)(struct QSEECom_handle *handle);
 typedef int (*send_cmd_def)(struct QSEECom_handle *handle, void *send_buf, uint32_t sbuf_len, void *rcv_buf, uint32_t rbuf_len);
-typedef int (*send_modified_cmd_def)(struct QSEECom_handle *handle, void *send_buf, uint32_t sbuf_len, void *resp_buf, uint32_t rbuf_len, struct QSEECom_ion_fd_info  *ifd_data);
+typedef int (*send_modified_cmd_def)(struct QSEECom_handle *handle, void *send_buf, uint32_t sbuf_len, void *resp_buf, uint32_t rbuf_len, struct QSEECom_ion_fd_info *ifd_data);
 typedef int (*receive_req_def)(struct QSEECom_handle *handle, void *buf, uint32_t len);
 typedef int (*send_resp_def)(struct QSEECom_handle *handle, void *send_buf, uint32_t len);
 typedef int (*set_bandwidth_def)(struct QSEECom_handle *handle, bool high);
 typedef int (*app_load_query_def)(struct QSEECom_handle *handle, char *app_name);
 
 // Utility functions
-typedef int32_t (*load_trustlet_def)(struct qsee_handle_t* qsee_handle, struct QSEECom_handle **clnt_handle,const char *path, const char *fname, uint32_t sb_size);
-
+typedef int32_t (*load_trustlet_def)(struct qsee_handle_t *qsee_handle, struct QSEECom_handle **clnt_handle, const char *path, const char *fname, uint32_t sb_size);
 
 typedef struct qsee_handle_t {
     void *_data;
@@ -71,7 +70,7 @@ typedef struct qsee_handle_t {
 } qsee_handle_t;
 
 int qsee_open_handle(struct qsee_handle_t **handle);
-int qsee_free_handle(struct qsee_handle_t** handle);
-char* qsee_error_strings(int err);
+int qsee_free_handle(struct qsee_handle_t **handle);
+char *qsee_error_strings(int err);
 
 #endif

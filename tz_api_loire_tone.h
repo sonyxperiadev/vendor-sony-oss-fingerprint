@@ -39,11 +39,11 @@ enum fingerprint_group_t {
     FPC_GROUP_NORMAL = 0x1,
     FPC_GROUP_DB = 0x2,
     FPC_GROUP_FPCDATA = 0x3,
-    FPC_GROUP_DEBUG = 0x6, // I think?
+    FPC_GROUP_DEBUG = 0x6,  // I think?
     FPC_GROUP_QC = 0x07,
 };
 
-//enumerate tz app command ID's
+// enumerate tz app command ID's
 enum fingerprint_normal_cmd_t {
     FPC_BEGIN_ENROL = 0x00,
     FPC_ENROL_STEP = 0x01,
@@ -52,7 +52,7 @@ enum fingerprint_normal_cmd_t {
     FPC_UPDATE_TEMPLATE = 0x04,
     FPC_WAIT_FINGER_LOST = 0x05,
     FPC_WAIT_FINGER_DOWN = 0x07,
-    FPC_GET_FINGER_STATUS =0x8,
+    FPC_GET_FINGER_STATUS = 0x8,
     FPC_LOAD_EMPTY_DB = 0x0A,
     FPC_GET_FINGERPRINTS = 0xD,
     FPC_DELETE_FINGERPRINT = 0xE,
@@ -88,13 +88,13 @@ enum fingerprint_qc_cmd_t {
 typedef struct {
     uint32_t group_id;
     uint32_t cmd_id;
-    uint32_t ret_val; //Some cases this is used for return value of the command
+    uint32_t ret_val;  // Some cases this is used for return value of the command
 } fpc_send_std_cmd_t;
 
 typedef struct {
     uint32_t cmd_id;
-    uint32_t ret_val; //Some cases this is used for return value of the command
-    uint32_t length; //Some length of data supplied by previous modified command
+    uint32_t ret_val;  // Some cases this is used for return value of the command
+    uint32_t length;   // Some length of data supplied by previous modified command
 } keymaster_cmd_t;
 
 typedef struct {
@@ -151,7 +151,7 @@ typedef struct {
     uint32_t cmd_id;
     int32_t status;
     uint32_t length;
-    char* data;
+    char *data;
 } fpc_send_buffer_t;
 
 typedef struct {
@@ -171,7 +171,6 @@ typedef struct {
     uint32_t fingerprints[FINGERPRINT_MAX_COUNT];
 } fpc_fingerprint_list_t;
 
-
 typedef struct {
     uint32_t group_id;
     uint32_t cmd_id;
@@ -184,12 +183,12 @@ typedef struct {
     uint32_t cmd_id;
     uint32_t result;
     uint32_t length;
-    uint8_t auth_result[AUTH_RESULT_LENGTH]; // In practice this is always 69 bytes
+    uint8_t auth_result[AUTH_RESULT_LENGTH];  // In practice this is always 69 bytes
 } fpc_get_auth_result_t;
 
 typedef struct {
-    uint32_t length; //Length of data on ion buffer
-    uint32_t v_addr; //Virtual address of ion mmap buffer
+    uint32_t length;  // Length of data on ion buffer
+    uint32_t v_addr;  // Virtual address of ion mmap buffer
 } fpc_send_mod_cmd_t;
 
 typedef struct {

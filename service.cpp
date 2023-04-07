@@ -16,12 +16,13 @@
 
 #define LOG_TAG "android.hardware.biometrics.fingerprint@2.1-service"
 
-#include <hidl/HidlSupport.h>
-#include <hidl/HidlTransportSupport.h>
 #include "BiometricsFingerprint.h"
 #include "egistec/current/BiometricsFingerprint.h"
 #include "egistec/legacy/BiometricsFingerprint.h"
 #include "egistec/legacy/EGISAPTrustlet.h"
+
+#include <hidl/HidlSupport.h>
+#include <hidl/HidlTransportSupport.h>
 
 using android::NO_ERROR;
 using android::sp;

@@ -1,6 +1,8 @@
 #include "QSEEKeymasterTrustlet.h"
-#include <string.h>
+
 #include "FormatException.hpp"
+
+#include <string.h>
 
 #define LOG_TAG "FPC QSEEKeymasterTrustlet"
 #include <log/log.h>
