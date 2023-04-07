@@ -1,14 +1,15 @@
 #pragma once
 
+#include "../../IonBuffer.h"
 #include "QSEEKeymasterTrustlet.h"
 #include "QSEETrustlet.h"
 
-#include <IonBuffer.h>
 #include <arpa/inet.h>
 #include <hardware/hw_auth_token.h>
 #include <string.h>
 
 #include <algorithm>
+#include <memory>
 #include <vector>
 
 namespace egistec::current {

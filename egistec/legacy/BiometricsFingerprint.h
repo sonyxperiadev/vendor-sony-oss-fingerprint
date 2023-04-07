@@ -4,9 +4,9 @@
 
 #pragma once
 
+#include "../../QSEEKeymasterTrustlet.h"
 #include "EgisOperationLoops.h"
 
-#include <QSEEKeymasterTrustlet.h>
 #include <android/hardware/biometrics/fingerprint/2.1/IBiometricsFingerprint.h>
 
 #include <array>
