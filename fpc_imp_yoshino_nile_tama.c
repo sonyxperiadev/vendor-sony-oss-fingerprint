@@ -44,7 +44,7 @@ typedef struct {
     struct fpc_imp_data data;
     struct QSEECom_handle *fpc_handle;
     struct qsee_handle *qsee_handle;
-    struct qcom_km_ion_info ihandle;
+    struct dmabuf_handle dhandle;
     uint64_t auth_id;
 } fpc_data_t;
 
@@ -83,7 +83,7 @@ static const char *fpc_error_str(int err) {
     return error_strings[realerror];
 }
 
-err_t send_modified_command_to_tz(fpc_data_t *ldata, struct qcom_km_ion_info ihandle) {
+err_t send_modified_command_to_tz(fpc_data_t *ldata, struct dmabuf_handle dhandle) {
     struct QSEECom_handle *handle = ldata->fpc_handle;
 
     fpc_send_mod_cmd_t *send_cmd = (fpc_send_mod_cmd_t *)handle->ion_sbuffer;
@@ -92,12 +92,12 @@ err_t send_modified_command_to_tz(fpc_data_t *ldata, struct qcom_km_ion_info iha
 
     memset(&ion_fd_info, 0, sizeof(struct QSEECom_ion_fd_info));
 
-    ion_fd_info.data[0].fd = ihandle.ifd_data_fd;
+    ion_fd_info.data[0].fd = dhandle.fd;
     ion_fd_info.data[0].cmd_buf_offset = 4;
 
     *rec_cmd = 0;
-    send_cmd->v_addr = (intptr_t)ihandle.ion_sbuffer;
-    uint32_t length = (ihandle.sbuf_len + 4095) & (~4095);
+    send_cmd->v_addr = (intptr_t)dhandle.map;
+    uint32_t length = (dhandle.len + 4095) & (~4095);
     send_cmd->length = length;
     int result = ldata->qsee_handle->send_modified_cmd(handle, send_cmd, 64, rec_cmd, 64, &ion_fd_info);
 
@@ -115,13 +115,13 @@ err_t send_modified_command_to_tz(fpc_data_t *ldata, struct qcom_km_ion_info iha
 
 err_t send_normal_command(fpc_data_t *ldata, int group, int command) {
     fpc_send_std_cmd_t *send_cmd =
-        (fpc_send_std_cmd_t *)ldata->ihandle.ion_sbuffer;
+        (fpc_send_std_cmd_t *)ldata->dhandle.map;
 
     send_cmd->group_id = group;
     send_cmd->cmd_id = command;
     send_cmd->ret_val = 0x0;
 
-    int ret = send_modified_command_to_tz(ldata, ldata->ihandle);
+    int ret = send_modified_command_to_tz(ldata, ldata->dhandle);
 
     if (!ret) {
         ret = send_cmd->ret_val;
@@ -131,80 +131,80 @@ err_t send_normal_command(fpc_data_t *ldata, int group, int command) {
 }
 
 err_t send_buffer_command(fpc_data_t *ldata, uint32_t group_id, uint32_t cmd_id, const uint8_t *buffer, uint32_t length) {
-    struct qcom_km_ion_info ihandle;
+    struct dmabuf_handle dhandle;
 
     if (!ldata || !ldata->qsee_handle) {
         ALOGE("%s: ldata(=%p) or qsee_handle NULL", __func__, ldata);
         return -EINVAL;
     }
 
-    if (ldata->qsee_handle->ion_alloc(&ihandle, length + sizeof(fpc_send_buffer_t)) < 0) {
-        ALOGE("ION allocation  failed");
+    if (ldata->qsee_handle->dmabuf_alloc(ldata->qsee_handle, &dhandle, length + sizeof(fpc_send_buffer_t)) < 0) {
+        ALOGE("DMABUF allocation failed");
         return -1;
     }
 
-    fpc_send_buffer_t *cmd_data = (fpc_send_buffer_t *)ihandle.ion_sbuffer;
-    memset(ihandle.ion_sbuffer, 0, length + sizeof(fpc_send_buffer_t));
+    fpc_send_buffer_t *cmd_data = (fpc_send_buffer_t *)dhandle.map;
+    memset(dhandle.map, 0, length + sizeof(fpc_send_buffer_t));
     cmd_data->group_id = group_id;
     cmd_data->cmd_id = cmd_id;
     cmd_data->length = length;
     memcpy(&cmd_data->data, buffer, length);
 
-    if (send_modified_command_to_tz(ldata, ihandle) < 0) {
+    if (send_modified_command_to_tz(ldata, dhandle) < 0) {
         ALOGE("Error sending data to tz\n");
-        ldata->qsee_handle->ion_free(&ihandle);
+        ldata->qsee_handle->dmabuf_free(&dhandle);
         return -1;
     }
 
     int result = cmd_data->status;
-    ldata->qsee_handle->ion_free(&ihandle);
+    ldata->qsee_handle->dmabuf_free(&dhandle);
     return result;
 }
 
 err_t send_command_result_buffer(fpc_data_t *ldata, uint32_t group_id, uint32_t cmd_id, uint8_t *buffer, uint32_t length) {
-    struct qcom_km_ion_info ihandle;
-    if (ldata->qsee_handle->ion_alloc(&ihandle, length + sizeof(fpc_send_buffer_t)) < 0) {
-        ALOGE("ION allocation  failed");
+    struct dmabuf_handle dhandle;
+    if (ldata->qsee_handle->dmabuf_alloc(ldata->qsee_handle, &dhandle, length + sizeof(fpc_send_buffer_t)) < 0) {
+        ALOGE("DMABUF allocation failed");
         return -1;
     }
-    fpc_send_buffer_t *keydata_cmd = (fpc_send_buffer_t *)ihandle.ion_sbuffer;
-    memset(ihandle.ion_sbuffer, 0, length + sizeof(fpc_send_buffer_t));
+    fpc_send_buffer_t *keydata_cmd = (fpc_send_buffer_t *)dhandle.map;
+    memset(dhandle.map, 0, length + sizeof(fpc_send_buffer_t));
     keydata_cmd->group_id = group_id;
     keydata_cmd->cmd_id = cmd_id;
     keydata_cmd->length = length;
 
-    if (send_modified_command_to_tz(ldata, ihandle) < 0) {
+    if (send_modified_command_to_tz(ldata, dhandle) < 0) {
         ALOGE("Error sending data to tz\n");
-        ldata->qsee_handle->ion_free(&ihandle);
+        ldata->qsee_handle->dmabuf_free(&dhandle);
         return -1;
     }
     memcpy(buffer, &keydata_cmd->data[0], length);
 
     int result = keydata_cmd->status;
-    ldata->qsee_handle->ion_free(&ihandle);
+    ldata->qsee_handle->dmabuf_free(&dhandle);
     return result;
 }
 
 err_t send_custom_cmd(fpc_data_t *ldata, void *buffer, uint32_t len) {
     ALOGV(__func__);
-    struct qcom_km_ion_info ihandle;
+    struct dmabuf_handle dhandle;
 
-    if (ldata->qsee_handle->ion_alloc(&ihandle, len) < 0) {
-        ALOGE("ION allocation  failed");
+    if (ldata->qsee_handle->dmabuf_alloc(ldata->qsee_handle, &dhandle, len) < 0) {
+        ALOGE("DMABUF allocation failed");
         return -1;
     }
 
-    memcpy(ihandle.ion_sbuffer, buffer, len);
+    memcpy(dhandle.map, buffer, len);
 
-    if (send_modified_command_to_tz(ldata, ihandle) < 0) {
+    if (send_modified_command_to_tz(ldata, dhandle) < 0) {
         ALOGE("Error sending data to tz\n");
-        ldata->qsee_handle->ion_free(&ihandle);
+        ldata->qsee_handle->dmabuf_free(&dhandle);
         return -1;
     }
 
     // Copy back result
-    memcpy(buffer, ihandle.ion_sbuffer, len);
-    ldata->qsee_handle->ion_free(&ihandle);
+    memcpy(buffer, dhandle.map, len);
+    ldata->qsee_handle->dmabuf_free(&dhandle);
 
     return 0;
 };
@@ -881,9 +881,8 @@ err_t fpc_init(struct fpc_imp_data **data, int event_fd) {
     qsee_handle->shutdown_app(&mKeymasterHandle);
     mKeymasterHandle = NULL;
 
-    fpc_data->ihandle.ion_fd = 0;
-    if (fpc_data->qsee_handle->ion_alloc(&fpc_data->ihandle, 0x40) < 0) {
-        ALOGE("ION allocation failed");
+    if (fpc_data->qsee_handle->dmabuf_alloc(fpc_data->qsee_handle, &fpc_data->dhandle, 0x40) < 0) {
+        ALOGE("DMABUF allocation failed");
         goto err_alloc;
     }
 
@@ -911,7 +910,7 @@ err_keymaster:
         qsee_handle->shutdown_app(&mKeymasterHandle);
 err_alloc:
     if (fpc_data != NULL) {
-        fpc_data->qsee_handle->ion_free(&fpc_data->ihandle);
+        fpc_data->qsee_handle->dmabuf_free(&fpc_data->dhandle);
         free(fpc_data);
     }
 err_qsee:

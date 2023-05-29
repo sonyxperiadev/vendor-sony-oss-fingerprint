@@ -8,6 +8,10 @@
 // #define LOG_NDEBUG 0
 #include <log/log.h>
 
+// Defined in a different kernel header depending on the
+// kernel version.
+#define ION_QSECOM_HEAP_NAME "qsecom"
+
 namespace egistec::current {
 
 void log_hex(const char *data, int length) {
@@ -55,6 +59,11 @@ EGISAPTrustlet::EGISAPTrustlet() : QSEETrustlet(EGIS_QSEE_APP_NAME, 0x2400
                                                 EGIS_QSEE_APP_PATH
 #endif
                                    ) {
+    if (dmabuf_allocator.CheckIonSupport()) {
+        // Provide legacy mapping to ION devices
+        int ret = dmabuf_allocator.MapNameToIonHeap(DMABUF_QCOM_QSEECOM_HEAP_NAME, ION_QSECOM_HEAP_NAME);
+        LOG_ALWAYS_FATAL_IF(ret, "Failed to map DMABUF heap name to ION heap name: %d", ret);
+    }
 }
 
 #define CAPTURE_ERROR(cmd)                                    \
@@ -105,7 +114,7 @@ int EGISAPTrustlet::SendCommand(CommandId commandId, uint32_t gid) {
     return SendCommand(api, commandId, gid);
 }
 
-int EGISAPTrustlet::SendModifiedCommand(EGISAPTrustlet::API &api, IonBuffer &ionBuffer) {
+int EGISAPTrustlet::SendModifiedCommand(EGISAPTrustlet::API &api, DmaBuffer &ionBuffer) {
     // TODO: += !
     api.GetRequest().process = 0xe0;
     auto &base = api.PrepareBase(api.GetRequest().process);
@@ -143,13 +152,13 @@ int EGISAPTrustlet::SendModifiedCommand(EGISAPTrustlet::API &api, IonBuffer &ion
     return rc;
 }
 
-int EGISAPTrustlet::SendModifiedCommand(EGISAPTrustlet::API &api, IonBuffer &ionBuffer, CommandId commandId, uint32_t gid) {
+int EGISAPTrustlet::SendModifiedCommand(EGISAPTrustlet::API &api, DmaBuffer &ionBuffer, CommandId commandId, uint32_t gid) {
     api.GetRequest().command = commandId;
     api.GetRequest().gid = gid;
     return SendModifiedCommand(api, ionBuffer);
 }
 
-int EGISAPTrustlet::SendModifiedCommand(IonBuffer &ionBuffer, CommandId commandId, uint32_t gid) {
+int EGISAPTrustlet::SendModifiedCommand(DmaBuffer &ionBuffer, CommandId commandId, uint32_t gid) {
     auto api = GetLockedAPI();
     return SendModifiedCommand(api, ionBuffer, commandId, gid);
 }
@@ -184,7 +193,7 @@ int EGISAPTrustlet::Calibrate() {
  * Returns negative on error,
  * positive on event */
 int EGISAPTrustlet::GetNavEvent(int &which) {
-    TypedIonBuffer<int> keycode_buf;
+    TypedDmaBuffer<int> keycode_buf(dmabuf_allocator);
 
     auto api = GetLockedAPI();
     int rc = CAPTURE_ERROR(SendModifiedCommand(api, keycode_buf, CommandId::GetNavEvent, /* GID: */ 0));
@@ -240,14 +249,14 @@ int EGISAPTrustlet::UninitializeSensor() {
 }
 
 uint32_t EGISAPTrustlet::GetHwId() {
-    TypedIonBuffer<uint32_t> id;
+    TypedDmaBuffer<uint32_t> id(dmabuf_allocator);
     int rc = CAPTURE_ERROR(SendModifiedCommand(id, CommandId::GetHwId));
     LOG_ALWAYS_FATAL_IF(rc, "Failed to get hardware ID!");
     return *id;
 }
 
 uint64_t EGISAPTrustlet::GetAuthenticatorId() {
-    TypedIonBuffer<uint64_t> id;
+    TypedDmaBuffer<uint64_t> id(dmabuf_allocator);
     auto api = GetLockedAPI();
 
     int rc = CAPTURE_ERROR(SendModifiedCommand(api, id, CommandId::GetAuthenticatorId));
@@ -264,7 +273,7 @@ uint64_t EGISAPTrustlet::GetAuthenticatorId() {
 }
 
 int EGISAPTrustlet::GetImage(ImageResult &quality) {
-    TypedIonBuffer<ImageResult> ionBuffer;
+    TypedDmaBuffer<ImageResult> ionBuffer(dmabuf_allocator);
     int rc = CAPTURE_ERROR(SendModifiedCommand(ionBuffer, CommandId::GetImage));
     if (rc)
         return rc;
@@ -274,7 +283,7 @@ int EGISAPTrustlet::GetImage(ImageResult &quality) {
 }
 
 int EGISAPTrustlet::IsFingerLost(uint32_t timeout, ImageResult &status) {
-    TypedIonBuffer<ImageResult> ionBuffer;
+    TypedDmaBuffer<ImageResult> ionBuffer(dmabuf_allocator);
     // WARNING: timeout doesn't seem to change anything in terms of blocking.
     int rc = CAPTURE_ERROR(SendModifiedCommand(ionBuffer, CommandId::IsFingerLost, timeout));
     if (rc)
@@ -306,7 +315,7 @@ int EGISAPTrustlet::CheckSecureId(uint32_t gid, uint64_t user_id) {
 int EGISAPTrustlet::Enroll(uint32_t gid, uint32_t fid, enroll_result_t &result) {
     auto api = GetLockedAPI();
     api.GetRequest().fid = fid;
-    TypedIonBuffer<enroll_result_t> ionBuffer;
+    TypedDmaBuffer<enroll_result_t> ionBuffer(dmabuf_allocator);
 
     int rc = CAPTURE_ERROR(SendModifiedCommand(api, ionBuffer, CommandId::Enroll, gid));
     if (rc)
@@ -369,7 +378,7 @@ int EGISAPTrustlet::GetPrintIds(uint32_t gid, std::vector<uint32_t> &list) {
         uint32_t num_prints;
     };
 
-    TypedIonBuffer<print_ids_t> prints;
+    TypedDmaBuffer<print_ids_t> prints(dmabuf_allocator);
     auto api = GetLockedAPI();
 
     int rc = CAPTURE_ERROR(SendModifiedCommand(api, prints, CommandId::GetPrintIds, gid));
@@ -405,7 +414,7 @@ int EGISAPTrustlet::FinalizeIdentify() {
 }
 
 int EGISAPTrustlet::GetEnrolledCount(uint32_t &cnt) {
-    TypedIonBuffer<uint32_t> result;
+    TypedDmaBuffer<uint32_t> result(dmabuf_allocator);
     int rc = CAPTURE_ERROR(SendModifiedCommand(result, CommandId::GetEnrolledCount));
     if (rc)
         return rc;
@@ -426,7 +435,7 @@ int EGISAPTrustlet::Identify(uint32_t gid, uint64_t opid, identify_result_t &ide
     req.buffer_size = sizeof(opid);
     *reinterpret_cast<uint64_t *>(req.data) = opid;
 
-    TypedIonBuffer<identify_result_t> ionBuffer;
+    TypedDmaBuffer<identify_result_t> ionBuffer(dmabuf_allocator);
 
     int rc = CAPTURE_ERROR(SendModifiedCommand(api, ionBuffer, CommandId::Identify, gid));
     if (rc)
@@ -442,7 +451,7 @@ int EGISAPTrustlet::InitializeIdentify() {
 
 int EGISAPTrustlet::SaveTemplate() {
 #ifdef EGISTEC_SAVE_TEMPLATE_RETURNS_SIZE
-    TypedIonBuffer<uint32_t> result;
+    TypedDmaBuffer<uint32_t> result(dmabuf_allocator);
     int rc = CAPTURE_ERROR(SendModifiedCommand(result, CommandId::SaveTemplate));
     if (rc)
         return rc;
@@ -455,7 +464,7 @@ int EGISAPTrustlet::SaveTemplate() {
 }
 
 int EGISAPTrustlet::UpdateTemplate(bool &updated) {
-    TypedIonBuffer<bool> result;
+    TypedDmaBuffer<bool> result(dmabuf_allocator);
     int rc = CAPTURE_ERROR(SendModifiedCommand(result, CommandId::UpdateTemplate));
     if (rc)
         return rc;
