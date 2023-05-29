@@ -31,6 +31,10 @@
 #define QSEE_LIBRARY "libQSEEComAPI.so"
 #endif
 
+// Defined in a different kernel header depending on the
+// kernel version.
+#define ION_QSECOM_HEAP_NAME "qsecom"
+
 #include <log/log.h>
 
 // Forward declarations
@@ -39,9 +43,13 @@ static int qsee_load_trustlet(struct qsee_handle *qsee_handle,
                               struct QSEECom_handle **clnt_handle,
                               const char *path, const char *fname,
                               uint32_t sb_size);
-char *qsee_error_strings(int err);
+static char *qsee_error_strings(int err);
+static int dmabuf_alloc(struct qsee_handle *handle, struct dmabuf_handle *dmabuf, size_t len);
+static void dmabuf_free(struct dmabuf_handle *dmabuf);
+
 struct _priv_data {
     void *libHandle;
+    BufferAllocator *dmabuf_allocator;
 };
 
 int32_t qsee_open_handle(struct qsee_handle **ret_handle) {
@@ -62,18 +70,33 @@ int32_t qsee_open_handle(struct qsee_handle **ret_handle) {
     }
     ALOGD("Loaded QSEECom API library at %p\n", data->libHandle);
 
+    data->dmabuf_allocator = CreateDmabufHeapBufferAllocator();
+    if (!data->dmabuf_allocator) {
+        ALOGE("Failed to initialize dmabuf heap buffer allocator");
+        goto exit_err_dlhandle;
+    }
+
+    if (CheckIonSupport()) {
+        ret = MapDmabufHeapNameToIonHeap(data->dmabuf_allocator, DMABUF_QCOM_QSEECOM_HEAP_NAME, ION_QSECOM_HEAP_NAME, 0, 0, 0);
+        if (ret) {
+            ALOGE("Failed to map DMABUF heap name to ION heap name: %d", ret);
+            goto exit_err_dmabuf_allocator;
+        }
+    }
+
+    ALOGD("Loaded DMABUF allocator at %p\n", data->dmabuf_allocator);
+
     handle = (struct qsee_handle *)malloc(sizeof(struct qsee_handle));
     if (handle == NULL) {
         ALOGE("Error allocating memory: %s\n", strerror(errno));
-        goto exit_err_dlhandle;
+        goto exit_err_dmabuf_allocator;
     }
 
     handle->_data = data;
 
-    ALOGD("Loaded QSEECom API library...\n");
     // Setup internal functions
-    handle->ion_alloc = qcom_km_ion_memalloc;
-    handle->ion_free = qcom_km_ion_dealloc;
+    handle->dmabuf_alloc = dmabuf_alloc;
+    handle->dmabuf_free = dmabuf_free;
     handle->load_trustlet = qsee_load_trustlet;
 
     // Setup QSEECom Functions
@@ -155,35 +178,30 @@ int32_t qsee_open_handle(struct qsee_handle **ret_handle) {
     return 0;
 
 exit_err_handle:
-    if (handle != NULL) {
-        free(handle);
-    }
+    free(handle);
+exit_err_dmabuf_allocator:
+    FreeDmabufHeapBufferAllocator(data->dmabuf_allocator);
 exit_err_dlhandle:
-    if (data->libHandle != NULL) {
-        dlclose(data->libHandle);
-        data->libHandle = NULL;
-    }
+    dlclose(data->libHandle);
 exit_err_data:
-    if (data != NULL)
-        free(data);
+    free(data);
 exit:
     return ret;
 }
 
 int qsee_free_handle(struct qsee_handle **handle_ptr) {
-    struct _priv_data *data = NULL;
-    struct qsee_handle *handle;
-    handle = *handle_ptr;
-    data = (struct _priv_data *)handle->_data;
+    struct qsee_handle *handle = *handle_ptr;
+    struct _priv_data *data = handle->_data;
 
     dlclose(data->libHandle);
+    FreeDmabufHeapBufferAllocator(data->dmabuf_allocator);
     free(data);
     free(handle);
     *handle_ptr = NULL;
     return 0;
 }
 
-char *qsee_error_strings(int err) {
+static char *qsee_error_strings(int err) {
     switch (err) {
         case QSEECOM_LISTENER_REGISTER_FAIL:
             return "QSEECom: Failed to register listener\n";
@@ -225,4 +243,33 @@ int qsee_load_trustlet(struct qsee_handle *qsee_handle,
         ALOGI("TZ App loaded: %s\n", fname);
 
     return ret;
+}
+
+static int dmabuf_alloc(struct qsee_handle *handle, struct dmabuf_handle *dmabuf, size_t len) {
+    struct _priv_data *data = handle->_data;
+    void *map;
+    int fd;
+
+    fd = DmabufHeapAlloc(data->dmabuf_allocator, DMABUF_QCOM_QSEECOM_HEAP_NAME, len, 0, 0);
+    if (fd < 0) {
+        ALOGE("Failed to allocate DMA heap buffer of length %zu: %d", len, fd);
+        return fd;
+    }
+
+    map = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (!map) {
+        ALOGE("Failed to map DMA heap buffer: %s", strerror(errno));
+        close(fd);
+        return errno;
+    }
+
+    dmabuf->fd = fd;
+    dmabuf->map = map;
+    dmabuf->len = len;
+    return 0;
+}
+
+static void dmabuf_free(struct dmabuf_handle *dmabuf) {
+    munmap(dmabuf->map, dmabuf->len);
+    close(dmabuf->fd);
 }

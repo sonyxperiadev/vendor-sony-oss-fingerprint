@@ -10,7 +10,6 @@ LOCAL_MODULE_RELATIVE_PATH := hw
 LOCAL_SRC_FILES := \
     $(call all-subdir-cpp-files) \
     QSEEComFunc.c \
-    ion_buffer.c \
     common.c
 
 # ---------------- FPC ----------------
@@ -82,9 +81,9 @@ LOCAL_SHARED_LIBRARIES := \
     android.hardware.biometrics.fingerprint@2.1 \
     libcutils \
     libdl \
+    libdmabufheap \
     libhardware \
     libhidlbase \
-    libion \
     liblog \
     libutils
 

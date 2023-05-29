@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../IonBuffer.h"
+#include "../../DmaBuffer.h"
 #include "QSEEKeymasterTrustlet.h"
 #include "QSEETrustlet.h"
 
@@ -144,6 +144,8 @@ typedef struct {
 } identify_result_t;
 
 class EGISAPTrustlet : public QSEETrustlet {
+    BufferAllocator dmabuf_allocator;
+
    protected:
     class API {
         // TODO: Could be a templated class defined in QSEETrustlet.
@@ -193,9 +195,9 @@ class EGISAPTrustlet : public QSEETrustlet {
     int SendCommand(API &);
     int SendCommand(API &, CommandId, uint32_t gid = 0);
     int SendCommand(CommandId, uint32_t gid = 0);
-    int SendModifiedCommand(API &, IonBuffer &);
-    int SendModifiedCommand(API &, IonBuffer &, CommandId, uint32_t gid = 0);
-    int SendModifiedCommand(IonBuffer &, CommandId, uint32_t gid = 0);
+    int SendModifiedCommand(API &, DmaBuffer &);
+    int SendModifiedCommand(API &, DmaBuffer &, CommandId, uint32_t gid = 0);
+    int SendModifiedCommand(DmaBuffer &, CommandId, uint32_t gid = 0);
     int SendDataCommand(API &, CommandId, const void *data, size_t length, uint32_t gid = 0);
     int SendDataCommand(CommandId, const void *data, size_t length, uint32_t gid = 0);
     API GetLockedAPI();

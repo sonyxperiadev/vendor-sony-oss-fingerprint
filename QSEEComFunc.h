@@ -18,8 +18,8 @@
 #define __QSEECOMFUNC_H_
 
 #include "QSEEComAPI.h"
-#include "ion_buffer.h"
 
+#include <BufferAllocator/BufferAllocatorWrapper.h>
 #include <dlfcn.h>
 #include <fcntl.h>  // open function
 #include <linux/ioctl.h>
@@ -27,6 +27,8 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <unistd.h>  // close function
+
+#define DMABUF_QCOM_QSEECOM_HEAP_NAME "qcom,qseecom"
 
 // QCOM library functions
 typedef int (*start_app_def)(struct QSEECom_handle **clnt_handle, const char *path, const char *fname, uint32_t sb_size);
@@ -48,8 +50,18 @@ struct qsee_handle;
 // Utility functions
 typedef int32_t (*load_trustlet_def)(struct qsee_handle *qsee_handle, struct QSEECom_handle **clnt_handle, const char *path, const char *fname, uint32_t sb_size);
 
+struct dmabuf_handle {
+    int fd;
+    void *map;
+    size_t len;
+};
+
+typedef int (*dmabuf_alloc_def)(struct qsee_handle *qsee_handle, struct dmabuf_handle *dmabuf, size_t len);
+typedef void (*dmabuf_free_def)(struct dmabuf_handle *dmabuf);
+
 struct qsee_handle {
     void *_data;
+
     // QCOM lib functions
     start_app_def start_app;
     shutdown_app_def shutdown_app;
@@ -64,13 +76,12 @@ struct qsee_handle {
     set_bandwidth_def set_bandwidth;
     app_load_query_def app_load_query;
     // Utility functions provided by this library
-    ion_free_def ion_free;
-    ion_alloc_def ion_alloc;
+    dmabuf_alloc_def dmabuf_alloc;
+    dmabuf_free_def dmabuf_free;
     load_trustlet_def load_trustlet;
 };
 
 int qsee_open_handle(struct qsee_handle **handle);
 int qsee_free_handle(struct qsee_handle **handle);
-char *qsee_error_strings(int err);
 
 #endif
