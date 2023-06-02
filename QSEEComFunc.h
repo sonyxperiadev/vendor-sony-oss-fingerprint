@@ -28,9 +28,6 @@
 #include <sys/mman.h>
 #include <unistd.h>  // close function
 
-// Forward declarations
-struct qsee_handle_t;
-
 // QCOM library functions
 typedef int (*start_app_def)(struct QSEECom_handle **clnt_handle, const char *path, const char *fname, uint32_t sb_size);
 typedef int (*shutdown_app_def)(struct QSEECom_handle **clnt_handle);
@@ -45,10 +42,13 @@ typedef int (*send_resp_def)(struct QSEECom_handle *handle, void *send_buf, uint
 typedef int (*set_bandwidth_def)(struct QSEECom_handle *handle, bool high);
 typedef int (*app_load_query_def)(struct QSEECom_handle *handle, char *app_name);
 
-// Utility functions
-typedef int32_t (*load_trustlet_def)(struct qsee_handle_t *qsee_handle, struct QSEECom_handle **clnt_handle, const char *path, const char *fname, uint32_t sb_size);
+// Forward declarations
+struct qsee_handle;
 
-typedef struct qsee_handle_t {
+// Utility functions
+typedef int32_t (*load_trustlet_def)(struct qsee_handle *qsee_handle, struct QSEECom_handle **clnt_handle, const char *path, const char *fname, uint32_t sb_size);
+
+struct qsee_handle {
     void *_data;
     // QCOM lib functions
     start_app_def start_app;
@@ -67,10 +67,10 @@ typedef struct qsee_handle_t {
     ion_free_def ion_free;
     ion_alloc_def ion_alloc;
     load_trustlet_def load_trustlet;
-} qsee_handle_t;
+};
 
-int qsee_open_handle(struct qsee_handle_t **handle);
-int qsee_free_handle(struct qsee_handle_t **handle);
+int qsee_open_handle(struct qsee_handle **handle);
+int qsee_free_handle(struct qsee_handle **handle);
 char *qsee_error_strings(int err);
 
 #endif

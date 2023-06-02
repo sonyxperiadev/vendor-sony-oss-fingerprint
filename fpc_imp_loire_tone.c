@@ -32,10 +32,10 @@
 #include <log/log.h>
 
 typedef struct {
-    struct fpc_imp_data_t data;
+    struct fpc_imp_data data;
     struct QSEECom_handle *fpc_handle;
-    struct qsee_handle_t *qsee_handle;
-    struct qcom_km_ion_info_t ihandle;
+    struct qsee_handle *qsee_handle;
+    struct qcom_km_ion_info ihandle;
     uint64_t auth_id;
 } fpc_data_t;
 
@@ -68,7 +68,7 @@ static const char *fpc_error_str(int err) {
     }
 }
 
-err_t send_modified_command_to_tz(fpc_data_t *ldata, struct qcom_km_ion_info_t ihandle) {
+err_t send_modified_command_to_tz(fpc_data_t *ldata, struct qcom_km_ion_info ihandle) {
     struct QSEECom_handle *handle = ldata->fpc_handle;
 
     fpc_send_mod_cmd_t *send_cmd = (fpc_send_mod_cmd_t *)handle->ion_sbuffer;
@@ -115,7 +115,7 @@ err_t send_normal_command(fpc_data_t *ldata, int command) {
 }
 
 err_t send_buffer_command(fpc_data_t *ldata, uint32_t group_id, uint32_t cmd_id, const uint8_t *buffer, uint32_t length) {
-    struct qcom_km_ion_info_t ihandle;
+    struct qcom_km_ion_info ihandle;
     if (ldata->qsee_handle->ion_alloc(&ihandle, length + sizeof(fpc_send_buffer_t)) < 0) {
         ALOGE("ION allocation  failed");
         return -1;
@@ -138,7 +138,7 @@ err_t send_buffer_command(fpc_data_t *ldata, uint32_t group_id, uint32_t cmd_id,
 }
 
 err_t send_command_result_buffer(fpc_data_t *ldata, uint32_t group_id, uint32_t cmd_id, uint8_t *buffer, uint32_t length) {
-    struct qcom_km_ion_info_t ihandle;
+    struct qcom_km_ion_info ihandle;
     if (ldata->qsee_handle->ion_alloc(&ihandle, length + sizeof(fpc_send_buffer_t)) < 0) {
         ALOGE("ION allocation  failed");
         return -1;
@@ -162,7 +162,7 @@ err_t send_command_result_buffer(fpc_data_t *ldata, uint32_t group_id, uint32_t 
 
 err_t send_custom_cmd(fpc_data_t *ldata, void *buffer, uint32_t len) {
     ALOGV(__func__);
-    struct qcom_km_ion_info_t ihandle;
+    struct qcom_km_ion_info ihandle;
 
     if (ldata->qsee_handle->ion_alloc(&ihandle, len) < 0) {
         ALOGE("ION allocation  failed");
@@ -183,7 +183,7 @@ err_t send_custom_cmd(fpc_data_t *ldata, void *buffer, uint32_t len) {
     return 0;
 };
 
-err_t fpc_set_auth_challenge(fpc_imp_data_t *data, int64_t challenge) {
+err_t fpc_set_auth_challenge(struct fpc_imp_data *data, int64_t challenge) {
     ALOGV(__func__);
     fpc_data_t *ldata = (fpc_data_t *)data;
 
@@ -202,7 +202,7 @@ err_t fpc_set_auth_challenge(fpc_imp_data_t *data, int64_t challenge) {
     return auth_cmd.status;
 }
 
-int64_t fpc_load_auth_challenge(fpc_imp_data_t *data) {
+int64_t fpc_load_auth_challenge(struct fpc_imp_data *data) {
     ALOGV(__func__);
     fpc_data_t *ldata = (fpc_data_t *)data;
     fpc_load_auth_challenge_t cmd = {
@@ -222,7 +222,7 @@ int64_t fpc_load_auth_challenge(fpc_imp_data_t *data) {
     return cmd.challenge;
 }
 
-int64_t fpc_load_db_id(fpc_imp_data_t *data) {
+int64_t fpc_load_db_id(struct fpc_imp_data *data) {
     ALOGV(__func__);
     fpc_data_t *ldata = (fpc_data_t *)data;
 
@@ -244,7 +244,7 @@ int64_t fpc_load_db_id(fpc_imp_data_t *data) {
     return cmd.auth_id;
 }
 
-err_t fpc_get_hw_auth_obj(fpc_imp_data_t *data, void *buffer, uint32_t length) {
+err_t fpc_get_hw_auth_obj(struct fpc_imp_data *data, void *buffer, uint32_t length) {
     ALOGV(__func__);
     fpc_data_t *ldata = (fpc_data_t *)data;
     fpc_get_auth_result_t cmd = {
@@ -270,7 +270,7 @@ err_t fpc_get_hw_auth_obj(fpc_imp_data_t *data, void *buffer, uint32_t length) {
     return 0;
 }
 
-err_t fpc_verify_auth_challenge(fpc_imp_data_t *data, void *hat, uint32_t size) {
+err_t fpc_verify_auth_challenge(struct fpc_imp_data *data, void *hat, uint32_t size) {
     ALOGV(__func__);
     fpc_data_t *ldata = (fpc_data_t *)data;
     int ret = send_buffer_command(ldata, FPC_GROUP_FPCDATA, FPC_AUTHORIZE_ENROL, hat, size);
@@ -278,7 +278,7 @@ err_t fpc_verify_auth_challenge(fpc_imp_data_t *data, void *hat, uint32_t size) 
     return ret;
 }
 
-err_t fpc_del_print_id(fpc_imp_data_t *data, uint32_t id) {
+err_t fpc_del_print_id(struct fpc_imp_data *data, uint32_t id) {
     ALOGV(__func__);
     fpc_data_t *ldata = (fpc_data_t *)data;
 
@@ -303,7 +303,7 @@ err_t fpc_del_print_id(fpc_imp_data_t *data, uint32_t id) {
  * Returns 0 when an object is still touching the sensor
  * Returns a negative value on error
  */
-err_t fpc_wait_finger_lost(fpc_imp_data_t *data) {
+err_t fpc_wait_finger_lost(struct fpc_imp_data *data) {
     ALOGV(__func__);
     fpc_data_t *ldata = (fpc_data_t *)data;
     int result;
@@ -318,7 +318,7 @@ err_t fpc_wait_finger_lost(fpc_imp_data_t *data) {
  * Returns 0 when an event occurs (and the operation has to be stopped)
  * Returns a negative value on error
  */
-err_t fpc_wait_finger_down(fpc_imp_data_t *data) {
+err_t fpc_wait_finger_down(struct fpc_imp_data *data) {
     ALOGV(__func__);
     int result = -1;
     fpc_data_t *ldata = (fpc_data_t *)data;
@@ -336,7 +336,7 @@ err_t fpc_wait_finger_down(fpc_imp_data_t *data) {
 }
 
 // Attempt to capture image
-err_t fpc_capture_image(fpc_imp_data_t *data) {
+err_t fpc_capture_image(struct fpc_imp_data *data) {
     ALOGV(__func__);
 
     fpc_data_t *ldata = (fpc_data_t *)data;
@@ -371,26 +371,26 @@ err_t fpc_capture_image(fpc_imp_data_t *data) {
     return ret;
 }
 
-bool fpc_navi_supported(fpc_imp_data_t __unused *data) {
+bool fpc_navi_supported(struct fpc_imp_data __unused *data) {
     return false;
 }
 
-err_t fpc_navi_enter(fpc_imp_data_t __unused *data) {
+err_t fpc_navi_enter(struct fpc_imp_data __unused *data) {
     ALOGV(__func__);
     return -ENOSYS;
 }
 
-err_t fpc_navi_exit(fpc_imp_data_t __unused *data) {
+err_t fpc_navi_exit(struct fpc_imp_data __unused *data) {
     ALOGV(__func__);
     return -ENOSYS;
 }
 
-err_t fpc_navi_poll(fpc_imp_data_t __unused *data) {
+err_t fpc_navi_poll(struct fpc_imp_data __unused *data) {
     ALOGV(__func__);
     return -ENOSYS;
 }
 
-err_t fpc_enroll_step(fpc_imp_data_t *data, uint32_t *remaining_touches) {
+err_t fpc_enroll_step(struct fpc_imp_data *data, uint32_t *remaining_touches) {
     ALOGV(__func__);
     fpc_data_t *ldata = (fpc_data_t *)data;
     fpc_enrol_step_t cmd = {
@@ -411,7 +411,7 @@ err_t fpc_enroll_step(fpc_imp_data_t *data, uint32_t *remaining_touches) {
     return cmd.status;
 }
 
-err_t fpc_enroll_start(fpc_imp_data_t *data, int __unused print_index) {
+err_t fpc_enroll_start(struct fpc_imp_data *data, int __unused print_index) {
     ALOGV(__func__);
     fpc_data_t *ldata = (fpc_data_t *)data;
     int ret = send_normal_command(ldata, FPC_BEGIN_ENROL);
@@ -422,7 +422,7 @@ err_t fpc_enroll_start(fpc_imp_data_t *data, int __unused print_index) {
     return ret;
 }
 
-err_t fpc_enroll_end(fpc_imp_data_t *data, uint32_t *print_id) {
+err_t fpc_enroll_end(struct fpc_imp_data *data, uint32_t *print_id) {
     ALOGV(__func__);
     fpc_data_t *ldata = (fpc_data_t *)data;
     fpc_end_enrol_t cmd = {
@@ -445,12 +445,12 @@ err_t fpc_enroll_end(fpc_imp_data_t *data, uint32_t *print_id) {
     return 0;
 }
 
-err_t fpc_auth_start(fpc_imp_data_t __unused *data) {
+err_t fpc_auth_start(struct fpc_imp_data __unused *data) {
     ALOGV(__func__);
     return 0;
 }
 
-err_t fpc_auth_step(fpc_imp_data_t *data, uint32_t *print_id) {
+err_t fpc_auth_step(struct fpc_imp_data *data, uint32_t *print_id) {
     fpc_data_t *ldata = (fpc_data_t *)data;
     fpc_send_identify_t identify_cmd = {
         .commandgroup = FPC_GROUP_NORMAL,
@@ -472,17 +472,17 @@ err_t fpc_auth_step(fpc_imp_data_t *data, uint32_t *print_id) {
     return identify_cmd.status;
 }
 
-err_t fpc_auth_end(fpc_imp_data_t __unused *data) {
+err_t fpc_auth_end(struct fpc_imp_data __unused *data) {
     ALOGV(__func__);
     return 0;
 }
 
-err_t fpc_update_template(fpc_imp_data_t __unused *data) {
+err_t fpc_update_template(struct fpc_imp_data __unused *data) {
     // TODO: Implement for loire/tone
     return 1;
 }
 
-err_t fpc_get_print_index(fpc_imp_data_t *data, fpc_fingerprint_index_t *idx_data) {
+err_t fpc_get_print_index(struct fpc_imp_data *data, fpc_fingerprint_index_t *idx_data) {
     ALOGV(__func__);
     fpc_data_t *ldata = (fpc_data_t *)data;
     fpc_fingerprint_list_t cmd = {
@@ -509,7 +509,7 @@ err_t fpc_get_print_index(fpc_imp_data_t *data, fpc_fingerprint_index_t *idx_dat
     return 0;
 }
 
-err_t fpc_load_empty_db(fpc_imp_data_t *data) {
+err_t fpc_load_empty_db(struct fpc_imp_data *data) {
     err_t result;
     fpc_data_t *ldata = (fpc_data_t *)data;
 
@@ -521,7 +521,7 @@ err_t fpc_load_empty_db(fpc_imp_data_t *data) {
     return 0;
 }
 
-err_t fpc_load_user_db(fpc_imp_data_t *data, char *path) {
+err_t fpc_load_user_db(struct fpc_imp_data *data, char *path) {
     int result;
     fpc_data_t *ldata = (fpc_data_t *)data;
 
@@ -530,7 +530,7 @@ err_t fpc_load_user_db(fpc_imp_data_t *data, char *path) {
     return result;
 }
 
-err_t fpc_set_gid(fpc_imp_data_t *data, uint32_t gid) {
+err_t fpc_set_gid(struct fpc_imp_data *data, uint32_t gid) {
     int result;
     fpc_data_t *ldata = (fpc_data_t *)data;
     fpc_set_gid_t cmd = {
@@ -547,7 +547,7 @@ err_t fpc_set_gid(fpc_imp_data_t *data, uint32_t gid) {
     return result;
 }
 
-err_t fpc_store_user_db(fpc_imp_data_t *data, char *path) {
+err_t fpc_store_user_db(struct fpc_imp_data *data, char *path) {
     ALOGV(__func__);
     fpc_data_t *ldata = (fpc_data_t *)data;
     char temp_path[PATH_MAX];
@@ -564,7 +564,7 @@ err_t fpc_store_user_db(fpc_imp_data_t *data, char *path) {
     return ret;
 }
 
-err_t fpc_close(fpc_imp_data_t **data) {
+err_t fpc_close(struct fpc_imp_data **data) {
     ALOGV(__func__);
     fpc_data_t *ldata = (fpc_data_t *)*data;
 
@@ -583,12 +583,12 @@ err_t fpc_close(fpc_imp_data_t **data) {
     return 1;
 }
 
-err_t fpc_init(fpc_imp_data_t **data, int event_fd) {
+err_t fpc_init(struct fpc_imp_data **data, int event_fd) {
     int ret = 0;
 
     struct QSEECom_handle *mFPC_handle = NULL;
     struct QSEECom_handle *mKeymasterHandle = NULL;
-    struct qsee_handle_t *qsee_handle = NULL;
+    struct qsee_handle *qsee_handle = NULL;
 
     ALOGI("INIT FPC TZ APP\n");
     if (qsee_open_handle(&qsee_handle) != 0) {
@@ -674,7 +674,7 @@ err_t fpc_init(fpc_imp_data_t **data, int event_fd) {
         goto err_alloc;
     }
 
-    *data = (fpc_imp_data_t *)fpc_data;
+    *data = (struct fpc_imp_data *)fpc_data;
 
     return 1;
 

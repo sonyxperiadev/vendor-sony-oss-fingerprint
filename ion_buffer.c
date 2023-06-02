@@ -19,7 +19,7 @@ static int open_ion_device() {
     return ion_dev_fd;
 }
 
-int32_t qcom_km_ion_memalloc(struct qcom_km_ion_info_t *handle, size_t size) {
+int32_t qcom_km_ion_memalloc(struct qcom_km_ion_info *handle, size_t size) {
     size_t aligned_size = (size + ION_ALIGN_MASK) & ~ION_ALIGN_MASK;
     int rc = 0;
     int ion_data_fd = -1;
@@ -37,7 +37,7 @@ int32_t qcom_km_ion_memalloc(struct qcom_km_ion_info_t *handle, size_t size) {
                   MAP_SHARED, ion_data_fd, 0);
     LOG_ALWAYS_FATAL_IF(mapped == MAP_FAILED, "Failed to map ION buffer");
 
-    *handle = (struct qcom_km_ion_info_t){
+    *handle = (struct qcom_km_ion_info){
         .ion_fd = ion_fd,
         .ifd_data_fd = ion_data_fd,
         .ion_sbuffer = mapped,
@@ -48,7 +48,7 @@ int32_t qcom_km_ion_memalloc(struct qcom_km_ion_info_t *handle, size_t size) {
     return 0;
 }
 
-int32_t qcom_km_ion_dealloc(struct qcom_km_ion_info_t *handle) {
+int32_t qcom_km_ion_dealloc(struct qcom_km_ion_info *handle) {
     int rc = 0;
 
     if (handle->ion_sbuffer) {

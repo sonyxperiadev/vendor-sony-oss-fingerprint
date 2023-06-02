@@ -35,22 +35,22 @@
 
 // Forward declarations
 
-static int qsee_load_trustlet(struct qsee_handle_t *qsee_handle,
+static int qsee_load_trustlet(struct qsee_handle *qsee_handle,
                               struct QSEECom_handle **clnt_handle,
                               const char *path, const char *fname,
                               uint32_t sb_size);
 char *qsee_error_strings(int err);
-typedef struct {
+struct _priv_data {
     void *libHandle;
-} _priv_data_t;
+};
 
-int32_t qsee_open_handle(struct qsee_handle_t **ret_handle) {
-    struct qsee_handle_t *handle = NULL;
-    _priv_data_t *data = NULL;
+int32_t qsee_open_handle(struct qsee_handle **ret_handle) {
+    struct qsee_handle *handle = NULL;
+    struct _priv_data *data = NULL;
     int32_t ret = -1;
 
     ALOGD("Using Target Lib : %s\n", QSEE_LIBRARY);
-    data = (_priv_data_t *)malloc(sizeof(_priv_data_t));
+    data = (struct _priv_data *)malloc(sizeof(struct _priv_data));
     if (data == NULL) {
         ALOGE("Error allocating memory: %s\n", strerror(errno));
         goto exit;
@@ -62,7 +62,7 @@ int32_t qsee_open_handle(struct qsee_handle_t **ret_handle) {
     }
     ALOGD("Loaded QSEECom API library at %p\n", data->libHandle);
 
-    handle = (struct qsee_handle_t *)malloc(sizeof(struct qsee_handle_t));
+    handle = (struct qsee_handle *)malloc(sizeof(struct qsee_handle));
     if (handle == NULL) {
         ALOGE("Error allocating memory: %s\n", strerror(errno));
         goto exit_err_dlhandle;
@@ -170,11 +170,11 @@ exit:
     return ret;
 }
 
-int qsee_free_handle(struct qsee_handle_t **handle_ptr) {
-    _priv_data_t *data = NULL;
-    struct qsee_handle_t *handle;
+int qsee_free_handle(struct qsee_handle **handle_ptr) {
+    struct _priv_data *data = NULL;
+    struct qsee_handle *handle;
     handle = *handle_ptr;
-    data = (_priv_data_t *)handle->_data;
+    data = (struct _priv_data *)handle->_data;
 
     dlclose(data->libHandle);
     free(data);
@@ -202,7 +202,7 @@ char *qsee_error_strings(int err) {
     }
 }
 
-int qsee_load_trustlet(struct qsee_handle_t *qsee_handle,
+int qsee_load_trustlet(struct qsee_handle *qsee_handle,
                        struct QSEECom_handle **clnt_handle,
                        const char *path, const char *fname,
                        uint32_t sb_size) {

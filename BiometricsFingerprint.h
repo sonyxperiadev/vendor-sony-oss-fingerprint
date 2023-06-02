@@ -76,7 +76,7 @@ struct BiometricsFingerprint : public IBiometricsFingerprint, public ::Synchroni
 
     ::SynchronizedWorker::Thread mWt;
     char db_path[255];
-    fpc_imp_data_t *fpc = NULL;
+    struct fpc_imp_data *fpc = NULL;
     sp<IBiometricsFingerprintClientCallback> mClientCallback = NULL;
     std::mutex mClientCallbackMutex;
     uint32_t gid;
