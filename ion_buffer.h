@@ -16,18 +16,18 @@
 
 __BEGIN_DECLS
 
-struct qcom_km_ion_info_t {
+struct qcom_km_ion_info {
     int ion_fd;
     int ifd_data_fd;
     unsigned char *ion_sbuffer;
     uint32_t req_len, sbuf_len;
 };
 
-typedef int32_t (*ion_free_def)(struct qcom_km_ion_info_t *handle);
-typedef int32_t (*ion_alloc_def)(struct qcom_km_ion_info_t *handle, size_t size);
+typedef int32_t (*ion_free_def)(struct qcom_km_ion_info *handle);
+typedef int32_t (*ion_alloc_def)(struct qcom_km_ion_info *handle, size_t size);
 
-int32_t qcom_km_ion_memalloc(struct qcom_km_ion_info_t *handle, size_t size);
-int32_t qcom_km_ion_dealloc(struct qcom_km_ion_info_t *handle);
+int32_t qcom_km_ion_memalloc(struct qcom_km_ion_info *handle, size_t size);
+int32_t qcom_km_ion_dealloc(struct qcom_km_ion_info *handle);
 
 __END_DECLS
 

@@ -3,7 +3,7 @@
 #include "ion_buffer.h"
 
 class IonBuffer {
-    qcom_km_ion_info_t ion_info;
+    qcom_km_ion_info ion_info;
 
    public:
     IonBuffer(size_t);
