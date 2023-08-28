@@ -60,7 +60,7 @@ LOCAL_CFLAGS += \
     -DEGISTEC_SAVE_TEMPLATE_RETURNS_SIZE \
     -DEGIS_QSEE_APP_PATH=\"/odm/firmware\" \
     -DEGIS_QSEE_APP_NAME=\"egista64\"
-else ifeq ($(filter-out murray,$(SOMC_PLATFORM)),)
+else ifeq ($(filter-out murray zambezi,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += \
     -DEGISTEC_SAVE_TEMPLATE_RETURNS_SIZE \
     -DEGIS_QSEE_APP_NAME=\"egisap\"
