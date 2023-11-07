@@ -51,7 +51,7 @@ LOCAL_CFLAGS += \
     -DEGISTEC_SAVE_TEMPLATE_RETURNS_SIZE \
     -DEGIS_QSEE_APP_NAME=\"egista\" \
     -DEGIS_QSEE_APP_PATH=\"/odm/firmware\"
-else ifeq ($(filter-out lena,$(SOMC_PLATFORM)),)
+else ifeq ($(filter-out lena murray,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += \
     -DEGISTEC_SAVE_TEMPLATE_RETURNS_SIZE \
     -DEGIS_QSEE_APP_NAME=\"egista\"
@@ -60,7 +60,7 @@ LOCAL_CFLAGS += \
     -DEGISTEC_SAVE_TEMPLATE_RETURNS_SIZE \
     -DEGIS_QSEE_APP_PATH=\"/odm/firmware\" \
     -DEGIS_QSEE_APP_NAME=\"egista64\"
-else ifeq ($(filter-out murray zambezi,$(SOMC_PLATFORM)),)
+else ifeq ($(filter-out zambezi,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += \
     -DEGISTEC_SAVE_TEMPLATE_RETURNS_SIZE \
     -DEGIS_QSEE_APP_NAME=\"egisap\"
