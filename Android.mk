@@ -46,19 +46,20 @@ ifneq ($(filter-out loire tone yoshino tama,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += -DFINGERPRINT_TYPE_EGISTEC
 endif
 
-ifeq ($(filter-out kumano seine edo sagami,$(SOMC_PLATFORM)),)
+# Firmware custom location
+ifeq ($(filter-out kumano seine edo sagami nagara,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += \
-    -DEGISTEC_SAVE_TEMPLATE_RETURNS_SIZE \
-    -DEGIS_QSEE_APP_NAME=\"egista\" \
     -DEGIS_QSEE_APP_PATH=\"/odm/firmware\"
-else ifeq ($(filter-out lena murray,$(SOMC_PLATFORM)),)
+endif
+
+# Firmware name and atributes
+ifeq ($(filter-out kumano seine edo sagami lena murray,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += \
     -DEGISTEC_SAVE_TEMPLATE_RETURNS_SIZE \
     -DEGIS_QSEE_APP_NAME=\"egista\"
 else ifeq ($(filter-out nagara,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += \
     -DEGISTEC_SAVE_TEMPLATE_RETURNS_SIZE \
-    -DEGIS_QSEE_APP_PATH=\"/odm/firmware\" \
     -DEGIS_QSEE_APP_NAME=\"egista64\"
 else ifeq ($(filter-out zambezi,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += \
