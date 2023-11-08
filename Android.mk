@@ -47,7 +47,7 @@ LOCAL_CFLAGS += -DFINGERPRINT_TYPE_EGISTEC
 endif
 
 # Firmware custom location
-ifeq ($(filter-out kumano seine edo sagami nagara,$(SOMC_PLATFORM)),)
+ifeq ($(filter-out kumano seine edo sagami nagara yodo,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += \
     -DEGIS_QSEE_APP_PATH=\"/odm/firmware\"
 endif
@@ -61,7 +61,7 @@ else ifeq ($(filter-out nagara,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += \
     -DEGISTEC_SAVE_TEMPLATE_RETURNS_SIZE \
     -DEGIS_QSEE_APP_NAME=\"egista64\"
-else ifeq ($(filter-out zambezi,$(SOMC_PLATFORM)),)
+else ifeq ($(filter-out zambezi yodo,$(SOMC_PLATFORM)),)
 LOCAL_CFLAGS += \
     -DEGISTEC_SAVE_TEMPLATE_RETURNS_SIZE \
     -DEGIS_QSEE_APP_NAME=\"egisap\"
